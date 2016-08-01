@@ -3,13 +3,15 @@
 my $version = "0.2";
 
 ##Changes from v0.1.3 -> 0.2
+# moved project to git
 # Uses nucmer_backbone.pl version 0.3 (checks version before proceeding)
 # Allows for multi-contig genbank files
 # If mix of genbank and fasta files, will still output annotation information for genbank files
 # Outputs sequence files for backbone (as before), but also sequences of accessory sequences and core sequences for each included genome
 # Outputs annotation information for core, accessory, and backbone sequences (if annotations given)
+# Keeps track of which strand genes are found on. Will help with figure drawing by ClustAGE
 # change sequence name delimiters to "#" instead of "|". I think this will prevent potential problems with NCBI sequence and contig names. I'll also have nucmer_backbone.pl remove the delimiters automatically instead of outputting them.
-# sequence headers with spaces in them will be trunchated at the first space (since that's what nucmer is going to do anyway)
+# sequence headers with spaces in them will be truncated at the first space (since that's what nucmer is going to do anyway)
 # in addition to locus IDs of coding sequences, will also output product names (if given)
 # add in test for binary input files
 # add in test for duplicate genome IDs
@@ -537,11 +539,13 @@ sub gbk_convert{
             
             if ($line =~ m/^\s+(\S+)\s+(complement\()*<*(\d+)\.\.(\d+)>*\)*\s*$/){
                 my ($type, $start, $stop) = ($1, $3, $4);
+                my $dir = "+";
+                $dir = "-" if $2;
                 if (%tags){
                     return(3) unless $tags{'locus_tag'}; #no locus_tag was present on the last record
-                    my ($o_id, $o_start, $o_stop) = ($tags{'locus_tag'}, $tags{'start'}, $tags{'stop'});
+                    my ($o_id, $o_start, $o_stop, $o_dir) = ($tags{'locus_tag'}, $tags{'start'}, $tags{'stop'}, $tags{'dir'});
                     my $o_prod = $tags{'product'} if $tags{'product'};
-                    print $crdout "$filenum\t$o_id\t#$filename#$c_id\t$o_start\t$o_stop";
+                    print $crdout "$filenum\t$o_id\t#$filename#$c_id\t$o_start\t$o_stop\t$o_dir";
                     print $crdout "\t$o_prod" if $o_prod;
                     print $crdout "\n";
                     $loccount++;
@@ -553,6 +557,7 @@ sub gbk_convert{
                     ($start, $stop) = ($stop, $start) if $start > $stop;
                     $tags{'start'} = $start;
                     $tags{'stop'} = $stop;
+                    $tags{'dir'} = $dir;
                     $is_cds = 1;
                 }
                 next;
@@ -580,9 +585,9 @@ sub gbk_convert{
             if ($line =~ m/^ORIGIN/){
                 if (%tags){
                     return(3) unless $tags{'locus_tag'}; #no locus_tag was present on the last record
-                    my ($o_id, $o_start, $o_stop) = ($tags{'locus_tag'}, $tags{'start'}, $tags{'stop'});
+                    my ($o_id, $o_start, $o_stop, $o_dir) = ($tags{'locus_tag'}, $tags{'start'}, $tags{'stop'}, $tags{'dir'});
                     my $o_prod = $tags{'product'} if $tags{'product'};
-                    print $crdout "$filenum\t$o_id\t#$filename#$c_id\t$o_start\t$o_stop";
+                    print $crdout "$filenum\t$o_id\t#$filename#$c_id\t$o_start\t$o_stop\t$o_dir";
                     print $crdout "\t$o_prod" if $o_prod;
                     print $crdout "\n";
                     $loccount++;

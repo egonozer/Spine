@@ -115,12 +115,12 @@ Optional:
 		sequences.
                 *** This option currently only works for non-draft sequences
   -x		file listing all cds locus ids in the format:
-		genome order number<tab>locus id<tab>contig_id<tab>start coord<tab>end coord
+		genome order number<tab>locus id<tab>contig_id<tab>start coord<tab>end coord<tab>strand<tab>product (optional)
 		(one entry per line)
 			example:
-			1	gen1_00001	contig1 456	2176
-			1	gen1_00002	contig2 3187	4599
-			2	gen2_00001	contigA 679	3100
+			1	gen1_00001	contig1 456	2176    +   exoU
+			1	gen1_00002	contig2 3187	4599    +   spcU
+			2	gen2_00001	contigA 679	3100    -   hypothetical protein
 			etc.
 		If an input is given for both -x and -l, only -x will be used as
 		input. If the file given by -x does not exist, it will be
@@ -350,14 +350,14 @@ if ($opt_x and !$make_lid_file){
         next if $line =~ m/^\s*#/;  #skip any commented lines
         $line_count++;
         print STDERR "\rReading locus IDs from $lid_file: $line_count";
-        my ($gbknum, $lid, $contig, $start, $stop, $prod) = split('\t', $line);
+        my ($gbknum, $lid, $contig, $start, $stop, $dir, $prod) = split('\t', $line);
         if ($gbknum != $last_gbknum){
             close ($tmpcrdout) if $tmpcrdout;
             my $loci_tmp_file = "tmp_coordinates_$gbknum.txt";
             open ($tmpcrdout, ">$loci_tmp_file") or die "ERROR: Can't open $loci_tmp_file: $!\n";
             $loci_tmp_files[$gbknum] = "$loci_tmp_file";
         }
-        print $tmpcrdout "$lid\t$contig\t$start\t$stop";
+        print $tmpcrdout "$lid\t$contig\t$start\t$stop\t$dir";
         print $tmpcrdout "\t$prod" if $prod;
         print $tmpcrdout "\n";
         $last_gbknum = $gbknum;
@@ -1209,22 +1209,26 @@ sub post_process {
             }
             if (@locusids){
                 foreach my $slice (@locusids){
-                    my ($lid, $c_id, $l_start, $l_stop, $prod) = @{$slice};
+                    my ($lid, $c_id, $l_start, $l_stop) = @{$slice};
                     next if $l_stop < $o_start;
                     next if $l_start > $o_stop;
+                    my ($over_front, $over_back) = (0) x 2; #keep track of how much a gene overhangs the end of the segment
                     if ($l_start < $o_start){
+                        $over_front = $o_start - $l_start;
                         if ($l_stop <= $o_stop){
-                            push @{$loci{$lid}{$c_id}}, ([$out_id, $o_start, $o_start, $l_stop, $bbone_id]);
+                            push @{$loci{$lid}{$c_id}}, ([$out_id, $o_start, $o_start, $l_stop, $bbone_id, $over_front, $over_back]);
                         } else {
-                            push @{$loci{$lid}{$c_id}}, ([$out_id, $o_start, $o_start, $o_stop, $bbone_id]);
+                            $over_back = $l_stop - $o_stop;
+                            push @{$loci{$lid}{$c_id}}, ([$out_id, $o_start, $o_start, $o_stop, $bbone_id, $over_front, $over_back]);
                         }
                         next;
                     }
                     if ($l_stop > $o_stop){
-                        push @{$loci{$lid}{$c_id}}, ([$out_id, $o_start, $l_start, $o_stop, $bbone_id]);
+                        $over_back = $l_stop - $o_stop;
+                        push @{$loci{$lid}{$c_id}}, ([$out_id, $o_start, $l_start, $o_stop, $bbone_id, $over_front, $over_back]);
                         next;
                     }
-                    push @{$loci{$lid}{$c_id}}, ([$out_id, $o_start, $l_start, $l_stop, $bbone_id]); #don't need an if statement. Everything left after the above ifs are loci with borders within o_star and o_stop, inclusive
+                    push @{$loci{$lid}{$c_id}}, ([$out_id, $o_start, $l_start, $l_stop, $bbone_id, $over_front, $over_back]); #don't need an if statement. Everything left after the above ifs are loci with borders within o_star and o_stop, inclusive
                 }
             }
         } else {
@@ -1248,16 +1252,18 @@ sub post_process {
     if (%loci){
         #sort and output the annotation information to file
         open (my $out_gen, ">$fileid\_loci.txt") or die "ERROR: Can't open $fileid\_loci.txt: $!\n";
-        print $out_gen "locus_id\tgen_contig_id\tgen_contig_start\tgen_contig_stop\tout_seq_id\tout_seq_start\tout_seq_stop\tpct_locus\tproduct\n" unless ($type eq "out" or $type eq "pan");
+        print $out_gen "locus_id\tgen_contig_id\tgen_contig_start\tgen_contig_stop\tstrand\tout_seq_id\tout_seq_start\tout_seq_stop\tpct_locus\toverhangs\tproduct\n" unless ($type eq "out" or $type eq "pan");
         my $bbone_gen;
         if ($type eq "core" and $proc_eye == 0){
             open ($bbone_gen, ">$bbonefileid\_loci.txt") or die "ERROR: Can't open $stat.backbone_loci.txt: $!\n";
         }
         foreach my $slice (@loci_order){
             my @slice_arr = @{$slice};
+            #$lid, $contig, $start, $stop
             my ($locus, $contig) = @slice_arr;
-            my $prod = $slice_arr[4] if $slice_arr[4];
             next unless $loci{$locus}{$contig};
+            my $dir = $slice_arr[4];
+            my $prod = $slice_arr[5] if $slice_arr[5];
             my $out_contig = $contig;
             $out_contig =~ s/^\#[^#]*\#//;
             my $locusleng = $locuslengs{$locus}{$contig};
@@ -1275,16 +1281,16 @@ sub post_process {
             #}
             my $tot_pct = 0;
             foreach my $hit (@hits){
-                my ($id, $hoffset, $hstart, $hstop, $bbid) = @{$hit};
+                my ($id, $hoffset, $hstart, $hstop, $bbid, $over_front, $over_back) = @{$hit};
                 my $pct = sprintf("%.2f", 100 * (($hstop - $hstart + 1) / $locusleng));
                 $tot_pct += $pct;
                 my ($cstart, $cstop) = ($hstart - $hoffset + 1, $hstop - $hoffset + 1);
-                print $out_gen "$locus\t$out_contig\t$hstart\t$hstop\t$id\t$cstart\t$cstop\t$pct";
+                print $out_gen "$locus\t$out_contig\t$hstart\t$hstop\t$dir\t$id\t$cstart\t$cstop\t$pct\t$over_front,$over_back";
                 print $out_gen "\t$ref" if ($type eq "out" or $type eq "pan");
                 print $out_gen "\t$prod" if $prod;
                 print $out_gen "\n";
                 if ($type eq "core" and $proc_eye == 0){
-                    print $bbone_gen "$locus\t$out_contig\t$hstart\t$hstop\t$bbid\t$cstart\t$cstop\t$pct\t$ref";
+                    print $bbone_gen "$locus\t$out_contig\t$hstart\t$hstop\t$dir\t$bbid\t$cstart\t$cstop\t$pct\t$over_front,$over_back\t$ref";
                     print $bbone_gen "\t$prod" if $prod;
                     print $bbone_gen "\n";
                 }
@@ -1320,7 +1326,7 @@ sub process_final{
     my $out_gen;
     if (@loci_tmp_files){
         open ($out_gen, ">$stat.$outtype\_loci.txt") or die "ERROR: Can't open $stat.$outtype\_loci.txt: $!\n";
-        print $out_gen "locus_id\tgen_contig_id\tgen_contig_start\tgen_contig_stop\tout_seq_id\tout_seq_start\tout_seq_stop\tpct_locus\tsource_gen\tproduct\n" 
+        print $out_gen "locus_id\tgen_contig_id\tgen_contig_start\tgen_contig_stop\tstrand\tout_seq_id\tout_seq_start\tout_seq_stop\tpct_locus\toverhangs\tsource_gen\tproduct\n" 
     }
     #now process backbone sequences and statistics
     my $out_count = 0;
