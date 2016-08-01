@@ -1362,9 +1362,9 @@ sub process_final{
             my %unique_loci;
             while (my $line = <$in>){
                 chomp $line;
-                my ($locus,$out_contig,$hstart,$hstop,$id,$cstart,$cstop,$pct,$ref,$prod) = split("\t", $line);
+                my ($locus,$out_contig,$hstart,$hstop,$dir,$id,$cstart,$cstop,$pct,$ref,$overhang,$prod) = split("\t", $line);
                 if ($out_ids{$id}){
-                    print $out_gen "$locus\t$out_contig\t$hstart\t$hstop\t$out_ids{$id}\t$cstart\t$cstop\t$pct\t$ref";
+                    print $out_gen "$locus\t$out_contig\t$hstart\t$hstop\t$dir\t$out_ids{$id}\t$cstart\t$cstop\t$pct\t$overhang\t$ref";
                     print $out_gen "\t$prod" if $prod;
                     print $out_gen "\n";
                 } else {
