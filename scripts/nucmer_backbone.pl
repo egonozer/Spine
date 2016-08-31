@@ -1093,7 +1093,7 @@ sub post_process {
     my $seqid = "$ref\_$type\_";
     
     open (my $out_cor, ">$fileid\_coords.txt") or return "ERROR: Can't open $fileid\_coords.txt: $!\n";
-    print $out_cor "contig_id\tstart\tstop\tout_seq_id\n" unless ($type eq "out" or $type eq "pan");
+    print $out_cor "contig_id\tcontig_length\tstart\tstop\tout_seq_id\n" unless ($type eq "out" or $type eq "pan");
     open (my $out_seq, ">$fileid.fasta") or return "ERROR: Can't open $fileid.fasta: $!\n";
     my ($bbone_cor, $bbone_seq); #to be used to avoid the time of double-processing core and backbone for the reference genome
     my $bbonefileid = "$stat.$ref.out";
@@ -1117,6 +1117,7 @@ sub post_process {
         $last_pct_done = $pct_done;
         
         my ($o_start, $o_stop, $c_id) = @{$array[$i]};
+        my $c_size = $contig_lengs{$c_id};
         my $out_c_id = $c_id;
         $out_c_id =~ s/^\#[^#]*\#//;
         my $b_leng = ($o_stop - $o_start) + 1;
@@ -1156,9 +1157,9 @@ sub post_process {
             $tot_seq .= $b_seq;
             #output coordinates
             if ($type eq "out" or $type eq "pan"){
-                print $out_cor "$out_c_id\t$o_start\t$o_stop\t$ref\t$out_id\n"
+                print $out_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\t$ref\t$out_id\n"
             } else {
-                print $out_cor "$out_c_id\t$o_start\t$o_stop\t$out_id\n";
+                print $out_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\t$out_id\n";
                 print $bbone_cor "$out_c_id\t$o_start\t$o_stop\t$ref\t$bbone_id\n" if ($type eq "core" and $proc_eye == 0);
             }
             #collect annotation information, if present
@@ -1234,9 +1235,9 @@ sub post_process {
         } else {
             #output coordinates
             if ($type eq "out" or $type eq "pan"){
-                print $out_cor "$out_c_id\t$o_start\t$o_stop\t$ref\n"
+                print $out_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\t$ref\n"
             } else {
-                print $out_cor "$out_c_id\t$o_start\t$o_stop\n";
+                print $out_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\n";
                 print $bbone_cor "$out_c_id\t$o_start\t$o_stop\t$ref\n" if ($type eq "core" and $proc_eye == 0);
             }
         }
@@ -1321,7 +1322,7 @@ sub process_final{
     $outtype = "pangenome" if $type eq "pan";
     #open files for writing
     open (my $out_cor, ">$stat.$outtype\_coords.txt") or die "ERROR: Can't open $stat.$outtype\_coords.txt: $!\n";
-    print $out_cor "contig_id\tstart\tstop\tsource_gen\tout_seq_id\n";
+    print $out_cor "contig_id\tcontig_length\tstart\tstop\tsource_gen\tout_seq_id\n";
     open (my $out_seq, ">$stat.$outtype.fasta") or die "ERROR: Can't open $stat.$outtype.fasta: $!\n";
     my $out_gen;
     if (@loci_tmp_files){
@@ -1386,9 +1387,9 @@ sub process_final{
                 chomp $line;
                 next if $line =~ m/^\s*$/; #skip blank lines
                 my @outline = split("\t", $line);
-                if ($outline[4]){
-                    if (my $out_id = $out_ids{$outline[4]}){
-                        $outline[4] = $out_id;
+                if ($outline[5]){
+                    if (my $out_id = $out_ids{$outline[5]}){
+                        $outline[5] = $out_id;
                     }
                 }
                 print $out_cor join("\t", @outline), "\n";
