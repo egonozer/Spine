@@ -1238,7 +1238,7 @@ sub post_process {
                 print $out_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\t$ref\n"
             } else {
                 print $out_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\n";
-                print $bbone_cor "$out_c_id\t$o_start\t$o_stop\t$ref\n" if ($type eq "core" and $proc_eye == 0);
+                print $bbone_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\t$ref\n" if ($type eq "core" and $proc_eye == 0);
             }
         }
     }
