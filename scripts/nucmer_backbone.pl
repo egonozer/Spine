@@ -422,13 +422,20 @@ if ($opt_v){
 # Initialize stats file
 open (my $stats, ">$stat.statistics.txt");
 select((select($stats), $|=1)[0]); #make the filehandle hot so it prints immediately (www.plover.com/FAQs/Buffering.html).
-print $stats "$0 version: $version\n";
-print $stats "inputs: -a:$abs -r:$ref -g:";
-print $stats join(",", @to_use);
-print $stats " -m:$max -h:$minhom -B:$backlen -I:$isllen -c:$coord";
-print $stats " -l: $gbks" if ($gbks);
-print $stats " -x: $lid_file" if ($opt_x);
-#print $stats " -p: $minpct" if ($opt_l);
+print $stats "Spine\n";
+#print $stats "$0 version: $version\n";
+print $stats "inputs: --pctcore $abs";
+print $stats " --refs ", join(",", @to_use) unless $opt_w;
+print $stats " --maxdist $max --pctid $minhom --minout $backlen";
+print $stats " --pangenome" if $opt_n;
+
+#print $stats "inputs: -a:$abs -r:$ref -g:";
+#print $stats join(",", @to_use);
+#print $stats " -m:$max -h:$minhom -B:$backlen -I:$isllen -c:$coord";
+#print $stats " -l: $gbks" if ($gbks);
+#print $stats " -x: $lid_file" if ($opt_x);
+##print $stats " -p: $minpct" if ($opt_l);
+
 print $stats "\n\n";
 print $stats "gen_#\tgen_name\tgen_size\tsource\ttotal_bp\tgc_%\tnum_segs\tmin_seg\tmax_seg\tavg_leng\tmedian_leng";
 print $stats "\tnum_cds" if ($opt_l);
