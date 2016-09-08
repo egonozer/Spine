@@ -154,8 +154,8 @@ Optional:
 
 # command line processing
 use Getopt::Std;
-our ($opt_c, $opt_f, $opt_a, $opt_r, $opt_g, $opt_m, $opt_h, $opt_o, $opt_b, $opt_B, $opt_I, $opt_s, $opt_v, $opt_l, $opt_x, $opt_e, $opt_n, $opt_t, $opt_V);
-getopts('c:f:a:r:g:s:m:h:b:B:I:l:x:t:oenvV');
+our ($opt_c, $opt_f, $opt_a, $opt_r, $opt_g, $opt_m, $opt_h, $opt_o, $opt_b, $opt_B, $opt_I, $opt_s, $opt_v, $opt_l, $opt_x, $opt_e, $opt_n, $opt_t, $opt_V, $opt_w);
+getopts('c:f:a:r:g:s:m:h:b:B:I:l:x:t:oenvVw');
 print "$version\n" and exit if $opt_V;
 die $usage unless ($opt_c and @ARGV);
 
@@ -188,6 +188,7 @@ if ($opt_x){
 
 # Input sequence file(s) and store concatenated sequences in separate files
 print STDERR "Reading in fasta sequences ... \n";
+print STDERR "<br>\n" if $opt_w;
 my $seq_count = 0;
 my $g_count = 0;
 my @order;
@@ -213,7 +214,7 @@ for my $i (0 .. $#ARGV){
                     my $size = length($seq);
                     $g_size{$id} = $size;
                     $g_count++;
-                    print STDERR "$id, code $seq_count, size $size\n";
+                    print STDERR "$id, code $seq_count, size $size\n" unless $opt_w;
                     push @order, $id;
                     
                 }
@@ -246,7 +247,7 @@ for my $i (0 .. $#ARGV){
     my $size = length($seq);
     $g_size{$id} = $size;
     $g_count++;
-    print STDERR "$id, code $seq_count, size $size\n";
+    print STDERR "$id, code $seq_count, size $size\n" unless $opt_w;
     push @order, $id;
     my $c_size = length $c_seq;
     push @{$contig_ids{$id}}, ([$c_id, $c_size]); #this is the only way to accurately capture genome/contig sizes. It means all of the sequence files have to be included.
@@ -262,6 +263,7 @@ die "ERROR: No sequences found in input fasta file(s)\n" if $seq_count == 0;
 # The only way this works is if nucmer_multi runs genomes in alphabetical order. Otherwise show-coords results won't be sorted correctly and this approach fails.
 
 print STDERR "Reading alignments .";
+print STDERR "..<br>\n" if $opt_w;
 #my @order;
 my (%hash);
 my $d_start;
@@ -282,7 +284,7 @@ while (my $line = <$in>){
     }
     if ($last_genome){
         if ($subid ne $last_genome){
-            print STDERR ".";
+            print STDERR "." unless $opt_w;
             if ($hash{$last_genome}){
                 my $gcode = $seq_counts{$last_genome};
                 open (my $out, ">tmp.crd.$gcode.txt") or die "ERROR: Can't open tmp.crd.$gcode.txt: $!\n";
@@ -310,7 +312,7 @@ close ($in);
 if (%hash){
     die "Whoops, too many records left (".scalar(keys %hash).")\n" if (keys %hash) > 2; #for debugging. Should be able to remove.
     foreach my $gen (sort keys %hash) {
-        print STDERR ".";
+        print STDERR "." unless $opt_w;
         my $gcode = $seq_counts{$gen};
         open (my $out, ">tmp.crd.$gcode.txt") or die "ERROR: Can't open tmp.crd.$gcode.txt: $!\n";
         foreach my $ref (keys %{$hash{$gen}}){
@@ -325,11 +327,12 @@ if (%hash){
     }
 }
 print STDERR "\n";
+print STDERR "<br>\n" if $opt_w;
 %hash = ();
 
 #checks whether -r input, if given, jibes with -c input characteristics
 my $nog = scalar @order;
-print STDERR "nog: $nog ref: $ref\n";
+print STDERR "nog: $nog ref: $ref\n" unless $opt_w;
 if (!$ref){
 	$ref = $nog;
 }
@@ -341,6 +344,7 @@ if ($ref < 1 or $ref > $nog or $ref=~/\D/){
 #  - Will do this instead of reading them to an array. With large numbers of genomes the array will take up too much memory when forking. 
 my @loci_tmp_files;
 if ($opt_x and !$make_lid_file){
+    print STDERR "Reading locus IDs ... <br>\n" if $opt_w;
     open (my $fin, "<", $lid_file) or die "Can't open locus ID file $lid_file: $!\n";
     my $line_count;
     my $last_gbknum = -1;
@@ -349,7 +353,7 @@ if ($opt_x and !$make_lid_file){
         chomp ($line);
         next if $line =~ m/^\s*#/;  #skip any commented lines
         $line_count++;
-        print STDERR "\rReading locus IDs from $lid_file: $line_count";
+        print STDERR "\rReading locus IDs from $lid_file: $line_count" unless $opt_w;
         my ($gbknum, $lid, $contig, $start, $stop, $dir, $prod) = split('\t', $line);
         if ($gbknum != $last_gbknum){
             close ($tmpcrdout) if $tmpcrdout;
@@ -363,7 +367,7 @@ if ($opt_x and !$make_lid_file){
         $last_gbknum = $gbknum;
     }
     close ($tmpcrdout) if $tmpcrdout;
-    print STDERR " Done!\n";
+    print STDERR " Done!\n" unless $opt_w;
     close ($fin);
 }
 
@@ -432,6 +436,8 @@ print $stats "\n";
 
 my $min_gen = $g_count - $abs;  # Minimum number of genomes in which a segement must be present to be "core"
 
+print STDERR "<br>Processing...<br>\n" if $opt_w;
+
 ## Start the threads a-rollin'
 my $finished = 0;
 my ($part, $children);
@@ -487,7 +493,11 @@ do {
         }
     }
     $finished++;
-    print STDERR "\nFinished $finished of $nog genomes.\n";
+    if ($opt_w){
+        print STDERR "Finished processing $finished of $nog genomes<br>\n";
+    } else {
+        print STDERR "\nFinished $finished of $nog genomes.\n";
+    }
     
     #set next process going
     if (@mt_to_use and $num_procs_running < $threads){
@@ -720,7 +730,7 @@ if ($ma){
 #    }
 #}
 
-print "Done\n";
+print "Done\n" unless $opt_w;
 
 #--------------------------
 sub start_next_process {
@@ -737,7 +747,7 @@ sub start_next_process {
         }
         
         ## below is for progress indicator
-        print STDERR sprintf("\rAnalysis # %3s is loading coords. ", $this_part);      
+        print STDERR sprintf("\rAnalysis # %3s is loading coords. ", $this_part) unless $opt_w;      
         
         #load the genome-specific alignment coordinates
         # will also group overlaps in a query (if they exist) at this time
@@ -770,7 +780,7 @@ sub start_next_process {
         
         ## below is for progress indicator
         my ($last_pct, $pct_count) = (0) x 2;
-        print STDERR sprintf("\rAnalysis # %3s is %3s pct complete.", $this_part, $last_pct) ; 
+        print STDERR sprintf("\rAnalysis # %3s is %3s pct complete.", $this_part, $last_pct) unless $opt_w; 
         
         my %proc_hash;
         my @core;
@@ -802,7 +812,7 @@ sub start_next_process {
                 $pct_count++;
                 my $pct = int(100* ($pct_count / $gen_size));
                 if ($pct % 1 == 0 and $pct != $last_pct){
-                    print STDERR sprintf("\rAnalysis # %3s is %3s pct complete.", $this_part, $pct);
+                    print STDERR sprintf("\rAnalysis # %3s is %3s pct complete.", $this_part, $pct) unless $opt_w;
                     $last_pct = $pct;
                 }
                 
@@ -919,7 +929,7 @@ sub start_next_process {
             }
             close ($ph_out); 
         }
-        print STDERR sprintf("\rAnalysis # %3s is %3s pct complete.", $this_part, 100);
+        print STDERR sprintf("\rAnalysis # %3s is %3s pct complete.", $this_part, 100) unless $opt_w;
         
         #read in annotation information, create markers for start and stop coordinates
         @loci_order = ();
@@ -1087,7 +1097,7 @@ sub post_process {
     $stat_type = "Accessry" if $type eq "accessory";
     $stat_type = "Backbone" if $type eq "out";
     $stat_type = "Pan     " if $type eq "pan";
-    print STDERR sprintf("\r$stat_type # %3s is %3s pct complete.", $this_part, 0);
+    print STDERR sprintf("\r$stat_type # %3s is %3s pct complete.", $this_part, 0) unless $opt_w;
     
     my $fileid = "$stat.$ref.$type";
     my $seqid = "$ref\_$type\_";
@@ -1112,7 +1122,7 @@ sub post_process {
         my $pct_done = 0;
         $pct_done = int(100 * ($i / $#array)) if $#array > 0;
         if ($pct_done != $last_pct_done and $pct_done % 10 == 0){
-            print STDERR sprintf("\r$stat_type # %3s is %3s pct complete.", $this_part, $pct_done);
+            print STDERR sprintf("\r$stat_type # %3s is %3s pct complete.", $this_part, $pct_done) unless $opt_w;
         }
         $last_pct_done = $pct_done;
         
@@ -1242,7 +1252,7 @@ sub post_process {
             }
         }
     }
-    print STDERR sprintf("\r$stat_type # %3s is %3s pct complete.", $this_part, 100); #status update
+    print STDERR sprintf("\r$stat_type # %3s is %3s pct complete.", $this_part, 100) unless $opt_w; #status update
     close ($out_cor);
     close ($out_seq);
     if ($type eq "core" and $proc_eye == 0){
@@ -1404,22 +1414,37 @@ sub process_final{
     
     my ($sum, $num, $min, $maxi, $rounded_mean, $median, $mode, $mode_freq) = stats(\@out_lengs);
     my $gc = gc_content($out_seqs);
-    print "\nCore Genome Statistics:\n" if $type eq "out";
-    print "\nPangenome Statistics:\n" if $type eq "pan";
+    if ($opt_w){
+        print "<br><strong>Core Genome Statistics:</strong><br>\n" if $type eq "out";
+        print "<strong>Pangenome Statistics:</strong><br>\n" if $type eq "pan";
+    } else {
+        print "\nCore Genome Statistics:\n" if $type eq "out";
+        print "\nPangenome Statistics:\n" if $type eq "pan";
+    }
     print "Number of segments >= $backlen bp: $num\n";
+    print "<br>\n" if $opt_w;
     print "Total bp: $sum\n";
+    print "<br>\n" if $opt_w;
     print "GC content: $gc%\n";
+    print "<br>\n" if $opt_w;
     print "Shortest segment length: $min\n";
+    print "<br>\n" if $opt_w;
     print "Longest segment length: $maxi\n";
+    print "<br>\n" if $opt_w;
     print "Average segment length: $rounded_mean\n";
+    print "<br>\n" if $opt_w;
     print "Median segment length: $median\n";
+    print "<br>\n" if $opt_w;
     print "Mode segment length: $mode, Frequency: $mode_freq\n";
+    print "<br>\n" if $opt_w;
     print $stats "-\t-\t-\t$outtype\t$sum\t$gc\t$num\t$min\t$maxi\t$rounded_mean\t$median";
     if ($opt_l){
             print "Number of CDS (if at least 50% by length): $out_loci_count\n";
+            print "<br>\n" if $opt_w;
             print $stats "\t$out_loci_count";
     }
     print "\n";
+    print "<br>\n" if $opt_w;
     print $stats "\n";
     return();
 }

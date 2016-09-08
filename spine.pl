@@ -175,6 +175,7 @@ my $diagfactor;
 my $maxgap;
 my $minmatch;
 my $nosimplify;
+my $web;
 
 GetOptions(
     'file|f=s'      => \$fof,
@@ -196,6 +197,7 @@ GetOptions(
     'maxgap=i'      => \$maxgap,
     'minmatch=i'    => \$minmatch,
     'nosimplify'    => \$nosimplify,
+    'web'           => \$web
 ) or die "$usage";
 die "$usage" unless $fof;
 die "version $version\n" if $vers;
@@ -219,63 +221,69 @@ if ($nucpath){
         $nuc_loc = "$nucpath/nucmer";
     } else {
         print STDERR "WARNING: Could not find nucmer at $nucpath. Searching PATH...\n";
+        print STDERR "<br>\n" if $web;
     }
     if (-e "$nucpath/show-coords"){
         $sc_loc = "$nucpath/show-coords";
     }
     unless (-e "$nucpath/show-coords"){
         print STDERR "WARNING: Could not find show-coords at $nucpath. Searching PATH...\n";
+        print STDERR "<br>\n" if $web;
     }
 }
 die "ERROR: Could not find nucmer in PATH. Make sure MUMmer is installed and executable.\n" if !$nuc_loc;
 die "ERROR: Could not find show-coords in PATH. Make sure MUMmer is installed and executable.\n" if !$sc_loc;
-print STDERR "nucmer found: $nuc_loc\n";
-print STDERR "show-coords found: $sc_loc\n";
+print STDERR "nucmer found: $nuc_loc\n" unless $web;
+print STDERR "show-coords found: $sc_loc\n" unless $web;
 
 #check that nucmer-multi and nucmer_backbone are both present and accessible
-die "ERROR: Perl must be installed and in your PATH.\n" unless (which("perl"));
+unless ($web){ #skip most of this check if running the web version
+    die "ERROR: Perl must be installed and in your PATH.\n" unless (which("perl"));
+}
 my $home_dir = abs_path($0); #get the absolute path to spine.pl
 $home_dir =~ s/\/[^\/]*$//; #strip off "/spine.pl"
-print STDERR "home_dir = $home_dir\n";
-die "ERROR: Can't find the required file \"nucmer_multi.pl\". Make sure it is in the \"scripts\" directory with spine.pl ($home_dir/scripts) and has not been renamed.\n" unless (-e "$home_dir/scripts/nucmer_multi.pl");
-die "ERROR: Can't find the required file \"nucmer_backbone.pl\". Make sure it is in the \"scripts\" directory with spine.pl ($home_dir/scripts) and has not been renamed.\n" unless (-e "$home_dir/scripts/nucmer_backbone.pl");
-my $nbb_vers = `perl $home_dir/scripts/nucmer_backbone.pl -V`;
-chomp $nbb_vers;
-my $min_nbb_vers = 0.3;
-my $wrong_vers = "unknown";
-if ($nbb_vers){
-    $nbb_vers =~ m/^(\d+\.\d+)/;
-    if ($1){
-        if ($1 >= $min_nbb_vers){
-            $wrong_vers = "";
+unless ($web){
+    print STDERR "home_dir = $home_dir\n";
+    die "ERROR: Can't find the required file \"nucmer_multi.pl\". Make sure it is in the \"scripts\" directory with spine.pl ($home_dir/scripts) and has not been renamed.\n" unless (-e "$home_dir/scripts/nucmer_multi.pl");
+    die "ERROR: Can't find the required file \"nucmer_backbone.pl\". Make sure it is in the \"scripts\" directory with spine.pl ($home_dir/scripts) and has not been renamed.\n" unless (-e "$home_dir/scripts/nucmer_backbone.pl");
+    my $nbb_vers = `perl $home_dir/scripts/nucmer_backbone.pl -V`;
+    chomp $nbb_vers;
+    my $min_nbb_vers = 0.3;
+    my $wrong_vers = "unknown";
+    if ($nbb_vers){
+        $nbb_vers =~ m/^(\d+\.\d+)/;
+        if ($1){
+            if ($1 >= $min_nbb_vers){
+                $wrong_vers = "";
+            } else {
+                $wrong_vers = "$1";
+            }
         } else {
-            $wrong_vers = "$1";
+            $wrong_vers = $nbb_vers;
         }
-    } else {
-        $wrong_vers = $nbb_vers;
-    }
-} 
-die "ERROR: Minimum version of scripts/nucmer_backbone.pl is $min_nbb_vers (detected version is $wrong_vers)\n" if $wrong_vers;
-print STDERR "nucmer_backbone.pl (version $nbb_vers) found: $home_dir/scripts/nucmer_backbone.pl\n";
-my $nm_vers = `perl $home_dir/scripts/nucmer_multi.pl -V`;
-chomp ($nm_vers);
-my $min_nm_vers = 0.3;
-$wrong_vers = "unknown";
-if ($nm_vers){
-    $nm_vers =~ m/^(\d+\.\d+)/;
-    if ($1){
-        if ($1 >= $min_nm_vers){
-            $wrong_vers = "";
+    } 
+    die "ERROR: Minimum version of scripts/nucmer_backbone.pl is $min_nbb_vers (detected version is $wrong_vers)\n" if $wrong_vers;
+    print STDERR "nucmer_backbone.pl (version $nbb_vers) found: $home_dir/scripts/nucmer_backbone.pl\n";
+    my $nm_vers = `perl $home_dir/scripts/nucmer_multi.pl -V`;
+    chomp ($nm_vers);
+    my $min_nm_vers = 0.3;
+    $wrong_vers = "unknown";
+    if ($nm_vers){
+        $nm_vers =~ m/^(\d+\.\d+)/;
+        if ($1){
+            if ($1 >= $min_nm_vers){
+                $wrong_vers = "";
+            } else {
+                $wrong_vers = "$1";
+            }
         } else {
-            $wrong_vers = "$1";
+            $wrong_vers = $nm_vers;
         }
-    } else {
-        $wrong_vers = $nm_vers;
-    }
-} 
-die "ERROR: Minimum version of scripts/nucmer_multi.pl is $min_nm_vers (detected version is $wrong_vers)\n" if $wrong_vers;
-print STDERR "nucmer_multi.pl (version $nm_vers) found: $home_dir/scripts/nucmer_multi.pl\n";
-
+    } 
+    die "ERROR: Minimum version of scripts/nucmer_multi.pl is $min_nm_vers (detected version is $wrong_vers)\n" if $wrong_vers;
+    print STDERR "nucmer_multi.pl (version $nm_vers) found: $home_dir/scripts/nucmer_multi.pl\n";
+}
+    
 #read in file of files
 die "ERROR: Can't find file '$fof'. Please check path.\n" unless -e $fof;
 die "ERROR: File '$fof' appears to be a binary file. Please check\n" if -B $fof;
@@ -333,8 +341,8 @@ if ($refs){
 #my $no_genes_out = 1;
 my $total_seqs = 0;
 my %file_dup_check;
-open (my $seqout, "> tmp_sequences.fasta") or die "ERROR: Can't open temporary file: $!\n";
-open (my $crdout, "> tmp_coordinates.txt") or die "ERROR: Can't open temporary file: $!\n";
+open (my $seqout, ">tmp_sequences.fasta") or die "ERROR: Can't open temporary file: $!\n";
+open (my $crdout, ">tmp_coordinates.txt") or die "ERROR: Can't open temporary file: $!\n";
 for my $i (0 .. $#files){
     my ($file, $fileid, $filetype) = split("\t", $files[$i]);
     die "ERROR: Can't find file '$file'. Please check path.\n" unless -e $file;
@@ -384,6 +392,7 @@ for my $i (0 .. $#files){
             die "ERROR: File contains no records. Please check file.\n";
         } else {
             print STDERR "contains $rec_count record(s).\n";
+            print STDERR "<br>\n" if $web;
             while (@seqarray){
                 my $line = shift @seqarray;
                 $line =~ s/>/>#$fileid#/;
@@ -424,6 +433,7 @@ close $crdout;
 
 #align sequences with nucmer
 print STDERR "\nRunning nucmer with $threads processes...\n";
+print STDERR "<br>\n" if $web;
 my $a_params = "--maxmatch";
 $a_params .= " -b $breaklen" if $breaklen;
 $a_params .= " -c $mincluster" if $mincluster;
@@ -433,16 +443,18 @@ $a_params .= " -g $maxgap" if $maxgap;
 $a_params .= " -l $minmatch" if $minmatch;
 $a_params .= " --nosimplify" if $nosimplify;
 print STDERR "\tnucmer options: $a_params\n";
+print STDERR "<br>\n" if $web;
 my $return;
 {
     #local @ARGV = ("-ftmp_sequences.fasta", "-g", "-a\"--maxmatch\"", "-t$threads", "-o$pref", "-n$nuc_loc");
-    our ($opt_f, $opt_g, $opt_a, $opt_t, $opt_o, $opt_n);
+    our ($opt_f, $opt_g, $opt_a, $opt_t, $opt_o, $opt_n, $opt_w);
     local $opt_f = "tmp_sequences.fasta";
     local $opt_g = 1;
     local $opt_a = $a_params;
     local $opt_t = $threads;
     local $opt_o = $pref;
     local $opt_n = $nuc_loc;
+    local $opt_w = 1 if $web;
     $return = do "$home_dir/scripts/nucmer_multi.pl";
 }
 unless ($return){
@@ -452,6 +464,7 @@ unless ($return){
 
 #run show-coords on alignment delta file
 print STDERR "\nRunning show-coords...\n";
+print STDERR "<br>\n" if $web;
 my @result = `$sc_loc -rTH $pref.delta > $pref.coords.txt 2>&1`;
 my $error = $?;
 die "ERROR: Show-coords failure (", join(",",@result), ")\n" if $error;
@@ -459,15 +472,18 @@ die "ERROR: Show-coords failure (", join(",",@result), ")\n" if $error;
 #run nucmer_backbone
 my $rev_aval = roundup(($aval_pct / 100) * $nog);
 my $aval = $nog - $rev_aval;
+print STDERR "<br>\n" if $web;
 print STDERR "\nGenerating core genome with core definition of at least $rev_aval of $nog genomes (>= $aval_pct%)\n";
+print STDERR "<br>\n" if $web;
 print STDERR "This can take a few minutes to a few hours depending on the sizes and number of the genomes.\n";
+print STDERR "<br>\n" if $web;
 $return = "";
 
-print STDERR "out_pan = $out_pan\n" if $out_pan;
+print STDERR "out_pan = $out_pan\n" if $out_pan and !$web;
 
 {
     local @ARGV = ("tmp_sequences.fasta");
-    our ($opt_c, $opt_h, $opt_B, $opt_I, $opt_e, $opt_x, $opt_a, $opt_m, $opt_s, $opt_t, $opt_o, $opt_n, $opt_r, $opt_g);
+    our ($opt_c, $opt_h, $opt_B, $opt_I, $opt_e, $opt_x, $opt_a, $opt_m, $opt_s, $opt_t, $opt_o, $opt_n, $opt_r, $opt_g, $opt_w);
     local $opt_c = "$pref.coords.txt";
     local $opt_a = $aval;
     local $opt_m = $maxdist;
@@ -482,6 +498,7 @@ print STDERR "out_pan = $out_pan\n" if $out_pan;
     local $opt_x = "tmp_coordinates.txt";
     local $opt_r = $out_opt_r;
     local $opt_g = $out_opt_g;
+    local $opt_w = 1 if $web;
     $return = do "$home_dir/scripts/nucmer_backbone.pl";
 }
 unless ($return){
@@ -490,8 +507,7 @@ unless ($return){
 }
 #unlink ("tmp_sequences.fasta");
 #unlink ("tmp_coordinates.txt");
-print STDERR "\nFinished!\n";
-
+print STDERR "\nFinished!\n" unless $web;
 
 #------------------------
 sub gbk_convert{
@@ -630,6 +646,7 @@ sub gbk_convert{
             print $seqout ">#$filename#$a_id\n$a_seq\n";
         }
         print STDERR "contains $seqcount record(s) with $loccount CDS.\n";
+        print STDERR "<br>\n" if $web;
         return (0);
     }
     return (5);

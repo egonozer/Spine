@@ -50,8 +50,8 @@ Optional:
 ";
 
 use Getopt::Std;
-our ($opt_f, $opt_d, $opt_n, $opt_a, $opt_t, $opt_o, $opt_g, $opt_s, $opt_b, $opt_V);
-getopts('f:d:n:a:t:o:gsbV');
+our ($opt_f, $opt_d, $opt_n, $opt_a, $opt_t, $opt_o, $opt_g, $opt_s, $opt_b, $opt_V, $opt_w);
+getopts('f:d:n:a:t:o:gsbVw');
 print "$version\n" and exit if $opt_V;
 die $usage unless $opt_f;
 
@@ -90,6 +90,7 @@ my $out_string;
 my $last_gen;
 my @gens;
 print STDERR "Preparing sequence files for alignment...\n";
+print STDERR "<br>\n" if $opt_w;
 open (my $infa, "<", $fasin) or die "Can't open $fasin: $!\n";
 while (my $line = <$infa>){
     chomp $line;
@@ -204,7 +205,14 @@ my $num_combos = scalar @combos;
 #run alignments
 my $num_threads_running = 0;
 my $num_done = 0;
-print STDERR "\rFinished $num_done of $num_combos alignments";
+my $lastpctdone;
+if ($opt_w){
+    my $pctdone = sprintf("%.0f", $num_done / $num_combos);
+    print STDERR "Finished $num_done of $num_combos alignments ($pctdone %)<br>\n";
+    $lastpctdone = $pctdone;
+} else {
+    print STDERR "\rFinished $num_done of $num_combos alignments";
+}
 open (my $out, "> $pref.delta");
 print $out "$abs_fa $abs_fa\nNUCMER\n";
 while (@combos){
@@ -232,7 +240,13 @@ while (@combos){
         }
         unlink ("$pid.delta");
         $num_done++;
-        print STDERR "\rFinished $num_done of $num_combos alignments";
+        if ($opt_w){
+            my $pctdone = sprintf("%.0f", 100*($num_done / $num_combos));
+            print STDERR "Finished $num_done of $num_combos alignments ($pctdone %)<br>\n" if ($pctdone % 5 == 0 and $pctdone != $lastpctdone);
+            $lastpctdone = $pctdone;
+        } else {
+            print STDERR "\rFinished $num_done of $num_combos alignments";
+        }
         $num_threads_running--;
     }
 }
@@ -250,7 +264,12 @@ while (my $pid = wait){
     }
     unlink ("$pid.delta");
     $num_done++;
-    print STDERR "\rFinished $num_done of $num_combos alignments";
+    if ($opt_w){
+        my $pctdone = sprintf("%.0f", 100*($num_done / $num_combos));
+        print STDERR "Finished $num_done of $num_combos alignments ($pctdone %)<br>\n" if ($pctdone % 5 == 0 and $pctdone != $lastpctdone);
+    } else {
+        print STDERR "\rFinished $num_done of $num_combos alignments";
+    }
     $num_threads_running--;
 }
 print STDERR "\n";
