@@ -1066,6 +1066,7 @@ sub stats{
 sub gc_content {
     my $seq = $_[0];
     my $count = 0;
+    return ("0.0000") unless $seq;
     while ($seq =~/G|C|g|c/g) {
         $count++;
     }
