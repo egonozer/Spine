@@ -422,7 +422,7 @@ if ($opt_v){
 # Initialize stats file
 open (my $stats, ">$stat.statistics.txt");
 select((select($stats), $|=1)[0]); #make the filehandle hot so it prints immediately (www.plover.com/FAQs/Buffering.html).
-print $stats "Spine\n";
+print $stats "Spine version: $version\n";
 #print $stats "$0 version: $version\n";
 print $stats "inputs: --pctcore $abs";
 print $stats " --refs ", join(",", @to_use) unless $opt_w;
@@ -717,25 +717,15 @@ if ($ma){
     
 }
 
-#print STDERR "\%seq_counts = (";
-#foreach my $val (keys %seq_counts){
-#    print "\t\"$val\" => $seq_counts{$val},\n";
-#}
-#print ");\n";
-#print STDERR "\%contig_starts = (";
-#foreach my $val (keys %contig_starts){
-#    print "\t\"$val\" => $contig_starts{$val},\n";
-#}
-#print ");\n";
-
 #clean up
-#for my $i (1 .. $nog){
-#    unlink ("tmp.seq.$i.txt") if -e "tmp.seq.$i.txt";
-#    unlink ("tmp.crd.$i.txt") if -e "tmp.crd.$i.txt";
-#    if ($loci_tmp_files[$i]){
-#        unlink("$loci_tmp_files[$i]") if -e "$loci_tmp_files[$i]";
-#    }
-#}
+for my $i (1 .. $nog){
+    unlink ("tmp.seq.$i.txt") if -e "tmp.seq.$i.txt";
+    unlink ("tmp.crd.$i.txt") if -e "tmp.crd.$i.txt";
+    if ($loci_tmp_files[$i]){
+        unlink("$loci_tmp_files[$i]") if -e "$loci_tmp_files[$i]";
+    }
+}
+unlink ("$stat.delta") if (-e "$stat.delta" and $opt_w);
 
 print "Done\n" unless $opt_w;
 
@@ -1345,7 +1335,7 @@ sub process_final{
     my $out_gen;
     if (@loci_tmp_files){
         open ($out_gen, ">$stat.$outtype\_loci.txt") or die "ERROR: Can't open $stat.$outtype\_loci.txt: $!\n";
-        print $out_gen "locus_id\tgen_contig_id\tgen_contig_start\tgen_contig_stop\tstrand\tout_seq_id\tout_seq_start\tout_seq_stop\tpct_locus\toverhangs\tsource_gen\tproduct\n" 
+        print $out_gen "locus_id\tgen_contig_id\tgen_contig_start\tgen_contig_stop\tstrand\tout_seq_id\tout_seq_start\tout_seq_stop\tpct_locus\tsource_gen\toverhangs\tproduct\n" 
     }
     #now process backbone sequences and statistics
     my $out_count = 0;
