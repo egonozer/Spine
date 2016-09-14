@@ -432,6 +432,7 @@ close $crdout;
 #print STDERR "\nFYI: Only fasta sequence files were given. No gene information will be output.\n" if ($no_genes_out);
 
 #align sequences with nucmer
+print STDERR "<h1>Running Nucmer</h1>\n" if $web;
 print STDERR "\nRunning nucmer with $threads processes...\n";
 print STDERR "<br>\n" if $web;
 my $a_params = "--maxmatch";
@@ -472,9 +473,9 @@ die "ERROR: Show-coords failure (", join(",",@result), ")\n" if $error;
 #run nucmer_backbone
 my $rev_aval = roundup(($aval_pct / 100) * $nog);
 my $aval = $nog - $rev_aval;
-print STDERR "<br>\n" if $web;
+print STDERR "<br>\n<h1>Generating Core Genome</h1><strong>" if $web;
 print STDERR "\nGenerating core genome with core definition of at least $rev_aval of $nog genomes (>= $aval_pct%)\n";
-print STDERR "<br>\n" if $web;
+print STDERR "</strong><br>\n" if $web;
 print STDERR "This can take a few minutes to a few hours depending on the sizes and number of the genomes.\n";
 print STDERR "<br>\n" if $web;
 $return = "";
