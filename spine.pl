@@ -562,8 +562,8 @@ sub gbk_convert{
                     return(3) unless $tags{'locus_tag'}; #no locus_tag was present on the last record
                     my ($o_id, $o_start, $o_stop, $o_dir) = ($tags{'locus_tag'}, $tags{'start'}, $tags{'stop'}, $tags{'dir'});
                     my $o_prod = $tags{'product'} if $tags{'product'};
-                    print $crdout "$filenum\t$o_id\t#$filename#$c_id\t$o_start\t$o_stop\t$o_dir";
-                    print $crdout "\t$o_prod" if $o_prod;
+                    print $crdout "$filenum\t$o_id\t#$filename#$c_id\t$o_start\t$o_stop\t$o_dir\t";
+                    print $crdout "$o_prod" if $o_prod;
                     print $crdout "\n";
                     $loccount++;
                 }

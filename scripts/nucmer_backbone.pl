@@ -1055,8 +1055,8 @@ sub stats{
 
 sub gc_content {
     my $seq = $_[0];
-    my $count = 0;
     return ("0.0000") unless $seq;
+    my $count = 0;
     while ($seq =~/G|C|g|c/g) {
         $count++;
     }
@@ -1091,11 +1091,11 @@ sub post_process {
     close ($in);
     
     #status update
-    my $stat_type = "Core    ";
-    $stat_type = "Accessry" if $type eq "accessory";
+    my $stat_type = "Core";
+    $stat_type = "Accessory" if $type eq "accessory";
     $stat_type = "Backbone" if $type eq "out";
-    $stat_type = "Pan     " if $type eq "pan";
-    print STDERR sprintf("\r$stat_type # %3s is %3s pct complete.", $this_part, 0) unless $opt_w;
+    $stat_type = "Pangenome" if $type eq "pan";
+    print STDERR sprintf("\r%9s # %3s is %3s pct complete.", $stat_type, $this_part, 0) unless $opt_w;
     
     my $fileid = "$stat.$ref.$type";
     my $seqid = "$ref\_$type\_";
@@ -1120,7 +1120,7 @@ sub post_process {
         my $pct_done = 0;
         $pct_done = int(100 * ($i / $#array)) if $#array > 0;
         if ($pct_done != $last_pct_done and $pct_done % 10 == 0){
-            print STDERR sprintf("\r$stat_type # %3s is %3s pct complete.", $this_part, $pct_done) unless $opt_w;
+            print STDERR sprintf("\r%9s # %3s is %3s pct complete.", $stat_type, $this_part, $pct_done) unless $opt_w;
         }
         $last_pct_done = $pct_done;
         
@@ -1142,14 +1142,32 @@ sub post_process {
             if ($lead_seq){
                 $lead = length($lead_seq);
             }
-            next if $lead == $b_leng; #skip if the entire sequence was N's
+            if ($lead == $b_leng){ #skip if the entire sequence was N's
+                #output coordinates
+                if ($type eq "out" or $type eq "pan"){
+                    print $out_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\t$ref\t$out_id\n"
+                } else {
+                    print $out_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\t$out_id\n";
+                    print $bbone_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\t$ref\t$bbone_id\n" if ($type eq "core" and $proc_eye == 0);
+                }
+                next;
+            }
             (my $tail_seq) = $b_seq =~ m/([NnXx-]*$)/;
             if ($tail_seq){
                 $tail = length($tail_seq);
             }
             if ($lead > 0 or $tail > 0){
                 my $dist = length($b_seq) - ($lead + $tail);
-                next if $dist < $minlen;
+                if ($dist < $minlen){
+                    #output coordinates
+                    if ($type eq "out" or $type eq "pan"){
+                        print $out_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\t$ref\t$out_id\n"
+                    } else {
+                        print $out_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\t$out_id\n";
+                        print $bbone_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\t$ref\t$bbone_id\n" if ($type eq "core" and $proc_eye == 0);
+                    }
+                    next;
+                }
                 $b_seq = substr($b_seq, $lead, $dist);
                 $o_start += $lead;
                 $o_stop -= $tail;
@@ -1250,7 +1268,7 @@ sub post_process {
             }
         }
     }
-    print STDERR sprintf("\r$stat_type # %3s is %3s pct complete.", $this_part, 100) unless $opt_w; #status update
+    print STDERR sprintf("\r%9s # %3s is %3s pct complete.", $stat_type, $this_part, 100) unless $opt_w; #status update
     close ($out_cor);
     close ($out_seq);
     if ($type eq "core" and $proc_eye == 0){
