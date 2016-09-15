@@ -2,7 +2,7 @@
 
 my $license = "
     nucmer_backbone.pl
-    Copyright (C) 2014 Egon A. Ozer
+    Copyright (C) 2016 Egon A. Ozer
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -48,7 +48,7 @@ nucmer_backbone.pl - Uses nucmer alignment to determine core and accessory
                      
 version = $version
 
-Copyright (C) 2014  Egon A. Ozer
+Copyright (C) 2016  Egon A. Ozer
 This program comes with ABSOLUTELY NO WARRANTY. This is free software, and you
 are welcome to redistribute it under certain conditions;
 see LICENSE.txt for details
@@ -1133,7 +1133,6 @@ sub post_process {
         my $out_id;
         my $bbone_id = "0,0";
         if ($b_leng >= $minlen){
-            push @lengs, $b_leng;
             my $offset = $contig_starts{$c_id} + $o_start - 2;
             my $b_seq = substr($seq, ($offset), $b_leng);
             #trim ambiguous bases from front and back of sequence. If the size of the remaining sequence is smaller than the minimum length, drop it.
@@ -1172,6 +1171,7 @@ sub post_process {
                 $o_start += $lead;
                 $o_stop -= $tail;
             }
+            push @lengs, length($b_seq);
             $count++;
             $out_id = $seqid.sprintf("%04d", $count)."_length\_$b_leng";
             $out_id = "$count,$b_leng" if ($type eq "out" or $type eq "pan");
@@ -1290,7 +1290,8 @@ sub post_process {
             my ($locus, $contig) = @slice_arr;
             next unless $loci{$locus}{$contig};
             my $dir = $slice_arr[4];
-            my $prod = $slice_arr[5] if $slice_arr[5];
+            my $prod = "NoAnnotation";
+            $prod = $slice_arr[5] if $slice_arr[5];
             my $out_contig = $contig;
             $out_contig =~ s/^\#[^#]*\#//;
             my $locusleng = $locuslengs{$locus}{$contig};
