@@ -59,41 +59,41 @@ The number of reference genomes used will depend on the definition of core genom
 (default: reference priority will be the same as the order of genomes entered, with the first genome having the highest priority and the last genome having the lowest priority)
 
   `-o` or `--prefix`  
-Output prefix. 
+Output prefix.  
 (default: "output")
 
-  `-p` or `--pctid`	
-Minimum percent identity for regions to be considered homologous. 
+  `-p` or `--pctid`  
+Minimum percent identity for regions to be considered homologous.  
 (default: 85)
 
-  `-s` or `--minout`
-Minimum size of core region sequences to be output, in bases.
+  `-s` or `--minout`  
+Minimum size of core region sequences to be output, in bases.  
 (default: 10)
 
-  `-t` or `--threads`
-Number of parallel processes to run. 
+  `-t` or `--threads`  
+Number of parallel processes to run.   
 (default: 4)
 
-Careful: This script does not perform any verification of the number of processers available. If you set this number higher than the number of processors you have, performance is likely to be significantly degraded.
+_Careful:_ This script does not perform any verification of the number of processers available. If you set this number higher than the number of processors you have, performance is likely to be significantly degraded.
  
- `-v` or `--version`
+ `-v` or `--version`  
 Print version information and quit.
 
 ** Nucmer Options **
 Advanced use only. Little reason to change defaults in most situations. 
-See MUMmer documentation for more information.
-  `--breaklen`        Integer (default: 200)
-  `--mincluster`      Integer (default: 65)
-  `--diagdiff`        Integer (default: 5)
-  `--diagfactor`      Float (default: 0.12)
-  `--minmatch`        Integer (default: 20)
-  `--nosimplify`      (default: simplify)
+See MUMmer documentation for more information.  
+  `--breaklen`        Integer (default: 200)  
+  `--mincluster`      Integer (default: 65)  
+  `--diagdiff`        Integer (default: 5)  
+  `--diagfactor`      Float (default: 0.12)  
+  `--minmatch`        Integer (default: 20)  
+  `--nosimplify`      (default: simplify)  
 
 ## OUTPUT FILES:
 
-__statistics.txt__
-First line shows the current software version used.
-Second line shows the input parameters given to the software.
+__statistics.txt__  
+First line shows the current software version used.  
+Second line shows the input parameters given to the software.  
 _Column headers and descriptions:_
 * gen_#: Number assigned to the genome based on the order the sequences were input to Spine.
 * gen_name: Name of the sequence, user-assigned
@@ -108,13 +108,13 @@ _Column headers and descriptions:_
 * median_leng: Median length of the output segments
 * num_cds (if annotation was provided): number of coding sequences present. A coding sequence is counted as present within either the core or the accessory genome if 50% or greater of the length of coding sequence is found in sequences within that genome fraction.
 
-__coords.txt__
-Coordinates of genome sequences. 
-"*.accessory_coords.txt": Accessory genome sequences for the indicated strain
-"*.core_coords.txt": Core genome sequences for the indicated strain
-"backbone_coords.txt": Core genome sequences for the group of strains
-"pangenome_coords.txt" (if requested): Pangeome sequences for the group of strains 
-_Column headers and descriptions:_
+__coords.txt__  
+Coordinates of genome sequences.   
+"*.accessory_coords.txt": Accessory genome sequences for the indicated strain  
+"*.core_coords.txt": Core genome sequences for the indicated strain  
+"backbone_coords.txt": Core genome sequences for the group of strains  
+"pangenome_coords.txt" (if requested): Pangeome sequences for the group of strains  
+_Column headers and descriptions:_  
 * contig_id: sequence ID of the source strain contig
 * contig_length: length, in bases, of the source strain contig
 * start: start coordinate of the genome segement on the source strain contig
@@ -122,16 +122,16 @@ _Column headers and descriptions:_
 * source_gen: (only for backbone or pangenome) genome name of the source strain
 * out_seq_id: sequence ID of the segment as found in the corresponding sequence file output by Spine 
 
-__*.fasta__
+__*.fasta__  
 Nucleotide sequences of the genome segments output by Spine. Original sources of the sequences can be determined by cross-referencing the sequence IDs with the cooresponding coords.txt file
 
-__loci.txt__ (if annotated genbank file was provided for one or more genomes)
-List of coding sequences found in the core genome.
-"*.accessory_loci.txt": Accessory genome coding sequences for the indicated strain
-"*.core_loci.txt": Core genome coding sequences for the indicated strain
-"backbone_loci.txt": Core genome coding sequences for the group of strains
-"pangenome_loci.txt" (if requested): Pangeome coding sequences for the group of strains 
-_Column headers and descriptions:_
+__loci.txt__ (if annotated genbank file was provided for one or more genomes)  
+List of coding sequences found in the core genome.  
+"*.accessory_loci.txt": Accessory genome coding sequences for the indicated strain  
+"*.core_loci.txt": Core genome coding sequences for the indicated strain  
+"backbone_loci.txt": Core genome coding sequences for the group of strains  
+"pangenome_loci.txt" (if requested): Pangeome coding sequences for the group of strains   
+_Column headers and descriptions:_  
 * locus_id: locusID of gene
 * gen_contig_id: Source strain contig ID
 * gen_contig_start: Gene start coordinate in source sequence (1-based)
@@ -145,9 +145,9 @@ _Column headers and descriptions:_
 * overhangs: Number of bases of the gene missing from the end(s) of the output segment. Values are separated by a comma. First value is the number of bases missing from the 5' end of the core segement, second value is the number of bases missing from the 3' end of the core segment.
 * product: Gene product
 
-__position_counts.txt__
-This file should not be needed for routine use. Is meant to be used as input for core_and_pangenome.pl to calculate core-, pan-, and new genome sizes at permutations of the input genomic sequences.
-_Column headers and descriptions:_
+__position_counts.txt__  
+This file should not be needed for routine use. Is meant to be used as input for core_and_pangenome.pl to calculate core-, pan-, and new genome sizes at permutations of the input genomic sequences.  
+_Column headers and descriptions:_  
 * ref_genome: ID number of the genome (based on the order of the sequences input to Spine) used as a reference in alignment to the other input genomes.
 * num_genomes_sharing: The number of genomes in which the sequences were found, i.e “1” indicates that the bases indicated in column four were only found in one genome (the “ref_genome”), “2” indicates that the bases indicated in column four were found in the “ref_genome” and one other genome, etc.
 * genome_codes_not_sharing: The ID numbers of those genomes in which no alignment to the bases indicated in column four was found, separated by commas. If there is a “0” in this column, the bases in column four were found to have alignments in all of the input genomes.
