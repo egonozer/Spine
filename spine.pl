@@ -32,8 +32,8 @@ my $version = "0.2";
 # Fixed a little glitch in filetype guessing
 
 my $license = "
-    spine.pl
-    Copyright (C) 2014 Egon A. Ozer
+    Spine
+    Copyright (C) 2016 Egon A. Ozer
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
