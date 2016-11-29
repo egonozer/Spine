@@ -1,6 +1,9 @@
 #!/usr/bin/perl
 
-my $version = "0.2";
+my $version = "0.2.1";
+
+##Changes from v0.2 -> 0.2.1
+# Fixed bug in nucmer_backbone.pl where first CDS on each contig was not being output
 
 ##Changes from v0.1.3 -> 0.2
 # moved project to git
