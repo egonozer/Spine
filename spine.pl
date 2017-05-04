@@ -1,6 +1,9 @@
 #!/usr/bin/perl
 
-my $version = "0.2.1";
+my $version = "0.2.2";
+
+##Changes from v0.2.1 -> 0.2.2
+# Fixed bug in nucmer_backbone.pl causing error messages when all-N regions were encountered
 
 ##Changes from v0.2 -> 0.2.1
 # Fixed bug in nucmer_backbone.pl where first CDS on each contig was not being output

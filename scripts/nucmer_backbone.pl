@@ -18,7 +18,10 @@ my $license = "
     along with this program.  If not, see [http://www.gnu.org/licenses/].
 ";
 
-my $version = "0.3.1";
+my $version = "0.3.2";
+
+## Changes from v0.3.1
+# Fixed bug where accessory regions composed entirely or mostly of ambiguous bases were causing an error when coordiates were being output
 
 ## Changes from v0.3
 # Fixed bug where first CDS on each contig was not being output
@@ -1133,7 +1136,7 @@ sub post_process {
         $out_c_id =~ s/^\#[^#]*\#//;
         my $b_leng = ($o_stop - $o_start) + 1;
         #output sequences
-        my $out_id;
+        my $out_id = "-";
         my $bbone_id = "0,0";
         if ($b_leng >= $minlen){
             my $offset = $contig_starts{$c_id} + $o_start - 2;
