@@ -1150,9 +1150,9 @@ sub post_process {
             if ($lead == $b_leng){ #skip if the entire sequence was N's
                 #output coordinates
                 if ($type eq "out" or $type eq "pan"){
-                    print $out_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\t$ref\t$out_id\n"
+                    print $out_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\t$ref\n"
                 } else {
-                    print $out_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\t$out_id\n";
+                    print $out_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\n";
                     print $bbone_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\t$ref\t$bbone_id\n" if ($type eq "core" and $proc_eye == 0);
                 }
                 next;
@@ -1166,9 +1166,9 @@ sub post_process {
                 if ($dist < $minlen){
                     #output coordinates
                     if ($type eq "out" or $type eq "pan"){
-                        print $out_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\t$ref\t$out_id\n"
+                        print $out_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\t$ref\n"
                     } else {
-                        print $out_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\t$out_id\n";
+                        print $out_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\n";
                         print $bbone_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\t$ref\t$bbone_id\n" if ($type eq "core" and $proc_eye == 0);
                     }
                     next;
