@@ -1,6 +1,9 @@
 #!/usr/bin/perl
 
-my $version = "0.2.2";
+my $version = "0.2.3";
+
+##Changes from v0.2.2 -> 0.2.3
+# Fixed bug in genbank file parsing where some genes that span the end of a contig might not appear in results
 
 ##Changes from v0.2.1 -> 0.2.2
 # Fixed bug in nucmer_backbone.pl causing error messages when all-N regions were encountered
@@ -560,7 +563,7 @@ sub gbk_convert{
             }
             next unless $is_feature;
             
-            if ($line =~ m/^\s+(\S+)\s+(complement\()*<*(\d+)\.\.(\d+)>*\)*\s*$/){
+            if ($line =~ m/^\s+(\S+)\s+(complement\()*<*(\d+)<*\.\.>*(\d+)>*\)*\s*$/){
                 my ($type, $start, $stop) = ($1, $3, $4);
                 my $dir = "+";
                 $dir = "-" if $2;
