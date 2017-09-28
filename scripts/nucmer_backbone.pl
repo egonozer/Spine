@@ -18,7 +18,10 @@ my $license = "
     along with this program.  If not, see [http://www.gnu.org/licenses/].
 ";
 
-my $version = "0.3.2";
+my $version = "0.3.3";
+
+## Changes from v0.3.2
+# Made the code memory-friendlier to large data sets by reading alignment coordinates directly into temporary files rather than into a hash first
 
 ## Changes from v0.3.1
 # Fixed bug where accessory regions composed entirely or mostly of ambiguous bases were causing an error when coordiates were being output
@@ -263,17 +266,18 @@ for my $i (0 .. $#ARGV){
 die "ERROR: No sequences found in input fasta file(s)\n" if $seq_count == 0;
 
 # Open Coordinates file and read into a hash
-# I've been running into memory issues with loading a large number of coordinates into a single hash.
-# Since nucmer_backbone should only be run through Spine now, I think I can safely presume that the coordinates file will come pre-sorted by genome, subsorted by contig.
-# Using this assumption, I will instead load each genome's contigs, then output them to temporary files to be individually read in by the forks. Lots of I/O, but that's probably better than malloc errors.
-# The only way this works is if nucmer_multi runs genomes in alphabetical order. Otherwise show-coords results won't be sorted correctly and this approach fails.
+# For large datasets, the hash method, even when dumping coordiantes to files, was still massively memory-intensive and slow
+# Will just dump coordinates (and reverse alignments) directly into files and let the threads sort them later
 
-print STDERR "Reading alignments .";
-print STDERR "..<br>\n" if $opt_w;
-#my @order;
-my (%hash);
-my $d_start;
-my $last_genome;
+## first, open all of the filehandles and store them in an array
+my @crd_fh;
+for my $i (1 .. $seq_count){
+    open (my $out, ">tmp.crd.$i.txt");
+    push @crd_fh, $out;
+}
+## next, read in the alignments, filter, and output to the correct temporary file
+print STDERR "Reading alignments ...";
+print STDERR "<br>\n" if $opt_w;
 open (my $in, "<", $coord) or die "ERROR: Can't open $coord: $!\n";
 while (my $line = <$in>){
     chomp $line;
@@ -288,53 +292,23 @@ while (my $line = <$in>){
     if ($q_id =~ m/^\#([^#]*)\#/){
         $q_subid = $1;
     }
-    if ($last_genome){
-        if ($subid ne $last_genome){
-            print STDERR "." unless $opt_w;
-            if ($hash{$last_genome}){
-                my $gcode = $seq_counts{$last_genome};
-                open (my $out, ">tmp.crd.$gcode.txt") or die "ERROR: Can't open tmp.crd.$gcode.txt: $!\n";
-                foreach my $ref (keys %{$hash{$last_genome}}){
-                    my @array = @{$hash{$last_genome}{$ref}};
-                    @array = sort{$a->[0] cmp $b->[0] || $a->[1] <=> $b->[1] || $a->[2] <=> $b->[2]}@array;
-                    foreach my $slice (@array){
-                        print $out "$ref\t", join("\t", @{$slice}), "\n";
-                    }
-                }
-                close ($out);
-                delete $hash{$last_genome};
-            }
-        }
-    }
-    
     if ($subid ne $q_subid){ #save some memory by not including self-hits (shouldn't be there anymore anyway with nucmer_multi_0.3)
-        push @{$hash{$subid}{$r_id}}, ([$q_subid, $r_start, $r_stop]);
+        my $gcode = $seq_counts{$subid};
+        my $fh = $crd_fh[$gcode - 1];
+        print $fh "$r_id\t$q_subid\t$r_start\t$r_stop\n";
         ($q_start, $q_stop) = ($q_stop, $q_start) if ($q_start > $q_stop); #need to flip reversed query coordinates
-        push @{$hash{$q_subid}{$q_id}}, ([$subid, $q_start, $q_stop]); #include the reverse alignment since this will no longer be performed by nucmer_multi_0.3
+        $gcode = $seq_counts{$q_subid};
+        $fh = $crd_fh[$gcode - 1];
+        print $fh "$q_id\t$subid\t$q_start\t$q_stop\n"; #include the reverse alignment since this will no longer be performed by nucmer_multi_0.3
     }
-    $last_genome = $subid;
 }
 close ($in);
-if (%hash){
-    die "Whoops, too many records left (".scalar(keys %hash).")\n" if (keys %hash) > 2; #for debugging. Should be able to remove.
-    foreach my $gen (sort keys %hash) {
-        print STDERR "." unless $opt_w;
-        my $gcode = $seq_counts{$gen};
-        open (my $out, ">tmp.crd.$gcode.txt") or die "ERROR: Can't open tmp.crd.$gcode.txt: $!\n";
-        foreach my $ref (keys %{$hash{$gen}}){
-            my @array = @{$hash{$gen}{$ref}};
-            @array = sort{$a->[0] cmp $b->[0] || $a->[1] <=> $b->[1] || $a->[2] <=> $b->[2]}@array;
-            foreach my $slice (@array){
-                print $out "$ref\t", join("\t", @{$slice}), "\n";
-            }
-        }
-        close ($out);
-        delete $hash{$gen};
-    }
-}
 print STDERR "\n";
 print STDERR "<br>\n" if $opt_w;
-%hash = ();
+## last, close all the temporary filehandles
+foreach (@crd_fh){
+    close $_;
+}
 
 #checks whether -r input, if given, jibes with -c input characteristics
 my $nog = scalar @order;
@@ -434,13 +408,6 @@ print $stats "inputs: --pctcore $abs";
 print $stats " --refs ", join(",", @to_use) unless $opt_w;
 print $stats " --maxdist $max --pctid $minhom --minout $backlen";
 print $stats " --pangenome" if $opt_n;
-
-#print $stats "inputs: -a:$abs -r:$ref -g:";
-#print $stats join(",", @to_use);
-#print $stats " -m:$max -h:$minhom -B:$backlen -I:$isllen -c:$coord";
-#print $stats " -l: $gbks" if ($gbks);
-#print $stats " -x: $lid_file" if ($opt_x);
-##print $stats " -p: $minpct" if ($opt_l);
 
 print $stats "\n\n";
 print $stats "gen_#\tgen_name\tgen_size\tsource\ttotal_bp\tgc_%\tnum_segs\tmin_seg\tmax_seg\tavg_leng\tmedian_leng";
@@ -752,34 +719,39 @@ sub start_next_process {
         ## below is for progress indicator
         print STDERR sprintf("\rAnalysis # %3s is loading coords. ", $this_part) unless $opt_w;      
         
-        #load the genome-specific alignment coordinates
-        # will also group overlaps in a query (if they exist) at this time
+        ## Load the (unsorted) genome-specific alignment coordinates into a hash
         my %hash;
         open (my $in, "<tmp.crd.$gcode.txt") or exit(9);
-        my ($lref, $lqry, $lstart, $lstop);
         while (my $line = <$in>){
             chomp $line;
             my ($ref, $qry, $start, $stop) = split("\t", $line);
-            if (!$lref){
-                ($lref, $lqry, $lstart, $lstop) = ($ref, $qry, $start, $stop);
-                next;
-            }
-            #check for overlapping alignments in the same query
-            if ($ref eq $lref){
-                if ($qry eq $lqry){
+            push @{$hash{$ref}{$qry}}, ([$start, $stop]);
+        }
+        close ($in);
+        
+        ## Sort the coordinates in the hash and merge overlapping coordinates
+        foreach my $ref (keys %hash){
+            foreach my $qry (keys %{$hash{$ref}}){
+                my @pre = @{$hash{$ref}{$qry}};
+                @pre = sort{$a->[0] <=> $b->[0] || $a->[1] <=> $b-[1]}@pre;
+                my @post;
+                my ($lstart, $lstop) = @{shift @pre};
+                while (@pre){
+                    my ($start, $stop) = @{shift @pre};
                     if ($start <= $lstop){
                         if ($stop > $lstop){
                             $lstop = $stop;
                         }
-                        next; #if the coordinate range is within the last coordinate range, will just go to the next
+                    } else {
+                        push @post, ([$lstart, $lstop]);
+                        ($lstart, $lstop) = ($start, $stop);
                     }
                 }
+                push @post, ([$lstart, $lstop]);
+                @{$hash{$ref}{$qry}} = @post;
             }
-            push @{$hash{$lref}{$lqry}}, ([$lstart, $lstop]);
-            ($lref, $lqry, $lstart, $lstop) = ($ref, $qry, $start, $stop); 
         }
-        close ($in);
-        push @{$hash{$lref}{$lqry}}, ([$lstart, $lstop]) if $lref;
+        
         
         ## below is for progress indicator
         my ($last_pct, $pct_count) = (0) x 2;

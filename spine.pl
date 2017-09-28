@@ -1,9 +1,10 @@
 #!/usr/bin/perl
 
 my $version = "0.2.4";
-
 ##Changes from v0.2.3 -> 0.2.4
-## Removed File::Which dependency. Added subroutine to test for whether executable is in PATH that uses only core Perl modules
+# Removed File::Which dependency. Added subroutine to test for whether executable is in PATH that uses only core Perl modules
+# Updated nucmer_backbone.pl to v0.3.3 to make it more memory-friendly to large data sets
+# Added --mini option to allow spine to produce limited output, i.e. just backbone core genome sequence and coordinates.
 
 ##Changes from v0.2.2 -> 0.2.3
 # Fixed bug in genbank file parsing where some genes that span the end of a contig might not appear in results
@@ -134,8 +135,15 @@ OPTIONS:
                     (default: reference priority will be the same as the order
                     of genomes entered, with the first genome having the highest
                     priority and the last genome having the lowest priority)
+  --mini            produce only limited output, i.e. just the backbone sequence
+                    derived from the reference genome(s). This saves time on
+                    large data sets, especially if you only need the backbone
+                    sequence to get accessory sequences from AGEnt.
+                    (default: core and accessory sequence sets will be output
+                    for all included genomes)
   --pangenome       produce a pangenome sequence and characteristics from
-                    sequences in the order given.
+                    sequences in the order given. This option will be ignored
+                    if '--mini' option is given.
                     (default: no pangenome information will be output)
   -o or --prefix    Output prefix
                     (default: \"output\")        
@@ -178,6 +186,7 @@ my $pref            = "output";
 my $fof;
 my $refs;
 my $nucpath;
+my $mini;
 my $out_pan;
 my $vers;
 my $lic;
@@ -200,6 +209,7 @@ GetOptions(
     'threads|t=i'   => \$threads,
     'prefix|o=s'    => \$pref,
     'nucpath|m=s'   => \$nucpath,
+    'mini'          => \$mini,
     'pangenome'     => \$out_pan,
     'version|v'     => \$vers,
     'license|l'     => \$lic,
@@ -492,6 +502,7 @@ print STDERR "This can take a few minutes to a few hours depending on the sizes 
 print STDERR "<br>\n" if $web;
 $return = "";
 
+$out_pan = "" if $mini;
 print STDERR "out_pan = $out_pan\n" if $out_pan and !$web;
 
 {
@@ -505,7 +516,7 @@ print STDERR "out_pan = $out_pan\n" if $out_pan and !$web;
     local $opt_I = $min_out;
     local $opt_s = $pref;
     local $opt_t = $threads;
-    local $opt_o = 1;
+    local $opt_o = 1 unless $mini;
     local $opt_e = 1;
     local $opt_n = 1 if $out_pan;
     local $opt_x = "tmp_coordinates.txt";
