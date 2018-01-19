@@ -6,7 +6,7 @@ Spine is a program for identification of the conserved core genome of bacteria a
 
 ## REQUIREMENTS:
 
-- Perl 5.10 or above and File::Which module
+- Perl 5.10 or above
 - [MUMmer](http://mummer.sourceforge.net) version 3.22 or above. Install MUMmer as directed by the instructions included with the software.
 - Mac OSX or Linux. We provide no guarantees that this will work on Windows or other operating systems.
 
@@ -34,6 +34,17 @@ Example:
 ```
         
 The third column (fasta or gbk) is optional, but should be given if your sequence files end with suffixes other than ".fasta" or ".gbk".
+
+If you have genomes spread across multiple files (i.e. chromosomes and/or plasmids), these can be combined by either concatenating the files into one:  
+```
+cat chrom_I.gbk chrom_II.gbk > combined.gbk
+```
+or by including all the files in this input file, separated by commmas:  
+Example:
+```
+/seqs/chrom_I.fasta,/seqs/chrom_II.fasta    mygenome    fasta
+chrom_A.gbk,chrom_B.gbk,plasmid_X.gbk   myothergenome   gbk
+```
 
 ### Optional Inputs
 
@@ -156,7 +167,7 @@ _Column headers and descriptions:_
 ## LICENSE:
 
 Spine
-Copyright (C) 2016 Egon A. Ozer
+Copyright (C) 2016-2018 Egon A. Ozer
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

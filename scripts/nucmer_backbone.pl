@@ -18,7 +18,11 @@ my $license = "
     along with this program.  If not, see [http://www.gnu.org/licenses/].
 ";
 
-my $version = "0.3.3";
+my $version = "0.4";
+
+## Changes from v0.3.3
+# Default (i.e. not setting -o option) will now only output backbone files. No per-genome core or accessory files will be output
+# Print Spine version in statistics file
 
 ## Changes from v0.3.2
 # Made the code memory-friendlier to large data sets by reading alignment coordinates directly into temporary files rather than into a hash first
@@ -147,7 +151,7 @@ Optional:
   -s		prefix of output files (default \"output\")
   -o		if given, will output coordinates of core and accessory genome
 		segments for each genome. Takes longer (default: only output
-                accessory statistics and coordinates for reference genome(s))
+                backbone files)
   -e            Output file of position values that can be used to calculate
                 pangenome and core genome characteristics of the data set
                 using core_and_pangenome.pl. If selected, will automatically
@@ -163,12 +167,12 @@ Optional:
 
 # command line processing
 use Getopt::Std;
-our ($opt_c, $opt_f, $opt_a, $opt_r, $opt_g, $opt_m, $opt_h, $opt_o, $opt_b, $opt_B, $opt_I, $opt_s, $opt_v, $opt_l, $opt_x, $opt_e, $opt_n, $opt_t, $opt_V, $opt_w);
-getopts('c:f:a:r:g:s:m:h:b:B:I:l:x:t:oenvVw');
+our ($opt_c, $opt_f, $opt_a, $opt_r, $opt_g, $opt_m, $opt_h, $opt_o, $opt_b, $opt_B, $opt_I, $opt_s, $opt_v, $opt_l, $opt_x, $opt_e, $opt_n, $opt_t, $opt_V, $opt_w, $opt_z);
+getopts('c:f:a:r:g:s:m:h:b:B:I:l:x:t:oenvVwz:');
 print "$version\n" and exit if $opt_V;
 die $usage unless ($opt_c and @ARGV);
 
-my ($coord, $fast, $abs, $ref, $minpct, $use, $stat, $max, $minhom, $outfile, $backfile, $backlen, $isllen, $gbks, $lid_file, $threads);
+my ($coord, $fast, $abs, $ref, $minpct, $use, $stat, $max, $minhom, $outfile, $backfile, $backlen, $isllen, $gbks, $lid_file, $threads, $out_vers);
 
 $coord	    = $opt_c if $opt_c;
 $fast		= $opt_f if $opt_f;
@@ -187,6 +191,7 @@ $backlen	= $opt_B ? $opt_B : 10;
 $isllen	    = $opt_I ? $opt_I : 10;
 $lid_file	= $opt_x if $opt_x;
 $threads    = $opt_t ? $opt_t : 15;
+$out_vers   = $opt_z ? $opt_z : $version;
 
 $opt_o = 1 if $opt_e;
 
@@ -402,7 +407,7 @@ if ($opt_v){
 # Initialize stats file
 open (my $stats, ">$stat.statistics.txt");
 select((select($stats), $|=1)[0]); #make the filehandle hot so it prints immediately (www.plover.com/FAQs/Buffering.html).
-print $stats "Spine version: $version\n";
+print $stats "Spine version: $out_vers\n";
 #print $stats "$0 version: $version\n";
 print $stats "inputs: --pctcore $abs";
 print $stats " --refs ", join(",", @to_use) unless $opt_w;
@@ -501,6 +506,7 @@ do {
         #transfer the stats from the fork to the stats file
         open (my $in, "<", $out) or die "ERROR: Can't open $out: $!\n";
         while (my $line = <$in>){
+            next if $line =~ m/^x\s*$/;
             print $stats "$line";
         }
         close ($in);
@@ -940,29 +946,33 @@ sub start_next_process {
         open (my $out_st, ">$outfile_st") or exit(3);
         
         #first, process accessory sequences.
-        my @params = ($gcode, "accessory", $proc_eye, $backlen, $this_part);
-        push @params, @acc;
-        my $stat_string = post_process(@params);
-        exit (4) if $stat_string =~ m/^ERROR/;
-        print $out_st "$stat_string";
+        if ($opt_o){
+            my @params = ($gcode, "accessory", $proc_eye, $backlen, $this_part);
+            push @params, @acc;
+            my $stat_string = post_process(@params);
+            exit (4) if $stat_string =~ m/^ERROR/;
+            print $out_st "$stat_string";
+        }
         #next, process core sequences. If this is the reference genome, will simultaneously process backbone
-        @params = ($gcode, "core", $proc_eye, $backlen, $this_part);
-        push @params, @core;
-        $stat_string = post_process(@params);
-        exit (5) if $stat_string =~ m/^ERROR/;
-        print $out_st "$stat_string";
+        unless (!$opt_o and $proc_eye > 0){
+            my @params = ($gcode, "core", $proc_eye, $backlen, $this_part);
+            push @params, @core;
+            my $stat_string = post_process(@params);
+            exit (5) if $stat_string =~ m/^ERROR/;
+            print $out_st "$stat_string";
+        }
         #next, process pangenome sequence (if requested)
         if ($opt_n){
-            @params = ($gcode, "pan", $proc_eye, $backlen, $this_part);
+            my @params = ($gcode, "pan", $proc_eye, $backlen, $this_part);
             push @params, @pan;
-            $stat_string = post_process(@params);
+            my $stat_string = post_process(@params);
             exit (7) if $stat_string =~ m/^ERROR/;
         }
         #finally, if this is not a reference genome, but should be included in the backbone, output the backbone segments
         if ($proc_eye > 0 and $proc_eye <= $abs){
-            @params = ($gcode, "out", $proc_eye, $backlen, $this_part);
+            my @params = ($gcode, "out", $proc_eye, $backlen, $this_part);
             push @params, @out;
-            $stat_string = post_process(@params);
+            my $stat_string = post_process(@params);
             exit (6) if $stat_string =~ m/^ERROR/;
         }
         close ($out_st);
@@ -1071,16 +1081,19 @@ sub post_process {
     #status update
     my $stat_type = "Core";
     $stat_type = "Accessory" if $type eq "accessory";
-    $stat_type = "Backbone" if $type eq "out";
+    $stat_type = "Backbone" if $type eq "out" or !$opt_o;
     $stat_type = "Pangenome" if $type eq "pan";
     print STDERR sprintf("\r%9s # %3s is %3s pct complete.", $stat_type, $this_part, 0) unless $opt_w;
     
     my $fileid = "$stat.$ref.$type";
     my $seqid = "$ref\_$type\_";
     
-    open (my $out_cor, ">$fileid\_coords.txt") or return "ERROR: Can't open $fileid\_coords.txt: $!\n";
-    print $out_cor "contig_id\tcontig_length\tstart\tstop\tout_seq_id\n" unless ($type eq "out" or $type eq "pan");
-    open (my $out_seq, ">$fileid.fasta") or return "ERROR: Can't open $fileid.fasta: $!\n";
+    my ($out_cor, $out_seq);
+    if ($opt_o or $type eq "out" or $type eq "pan"){ #only print coordinate and seq files for individual genomes if -o
+        open ($out_cor, ">$fileid\_coords.txt") or return "ERROR: Can't open $fileid\_coords.txt: $!\n";
+        print $out_cor "contig_id\tcontig_length\tstart\tstop\tout_seq_id\n" unless ($type eq "out" or $type eq "pan");
+        open ($out_seq, ">$fileid.fasta") or return "ERROR: Can't open $fileid.fasta: $!\n";
+    }
     my ($bbone_cor, $bbone_seq); #to be used to avoid the time of double-processing core and backbone for the reference genome
     my $bbonefileid = "$stat.$ref.out";
     if ($type eq "core" and $proc_eye == 0){
@@ -1124,7 +1137,7 @@ sub post_process {
                 if ($type eq "out" or $type eq "pan"){
                     print $out_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\t$ref\n"
                 } else {
-                    print $out_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\n";
+                    print $out_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\n" if $opt_o;
                     print $bbone_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\t$ref\t$bbone_id\n" if ($type eq "core" and $proc_eye == 0);
                 }
                 next;
@@ -1140,7 +1153,7 @@ sub post_process {
                     if ($type eq "out" or $type eq "pan"){
                         print $out_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\t$ref\n"
                     } else {
-                        print $out_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\n";
+                        print $out_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\n" if $opt_o;
                         print $bbone_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\t$ref\t$bbone_id\n" if ($type eq "core" and $proc_eye == 0);
                     }
                     next;
@@ -1153,7 +1166,7 @@ sub post_process {
             $count++;
             $out_id = $seqid.sprintf("%04d", $count)."_length\_$b_leng";
             $out_id = "$count,$b_leng" if ($type eq "out" or $type eq "pan");
-            print $out_seq ">$out_id\n$b_seq\n";
+            print $out_seq ">$out_id\n$b_seq\n" if ($opt_o or $type eq "out" or $type eq "pan");
             if ($type eq "core" and $proc_eye == 0){
                 $bbone_id = "$count,$b_leng";
                 print $bbone_seq ">$bbone_id\n$b_seq\n";
@@ -1161,9 +1174,9 @@ sub post_process {
             $tot_seq .= $b_seq;
             #output coordinates
             if ($type eq "out" or $type eq "pan"){
-                print $out_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\t$ref\t$out_id\n"
+                print $out_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\t$ref\t$out_id\n";
             } else {
-                print $out_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\t$out_id\n";
+                print $out_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\t$out_id\n" if $opt_o;
                 print $bbone_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\t$ref\t$bbone_id\n" if ($type eq "core" and $proc_eye == 0);
             }
             #collect annotation information, if present
@@ -1241,14 +1254,16 @@ sub post_process {
             if ($type eq "out" or $type eq "pan"){
                 print $out_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\t$ref\n"
             } else {
-                print $out_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\n";
+                print $out_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\n" if $opt_o;
                 print $bbone_cor "$out_c_id\t$c_size\t$o_start\t$o_stop\t$ref\n" if ($type eq "core" and $proc_eye == 0);
             }
         }
     }
     print STDERR sprintf("\r%9s # %3s is %3s pct complete.", $stat_type, $this_part, 100) unless $opt_w; #status update
-    close ($out_cor);
-    close ($out_seq);
+    if ($opt_o){
+        close ($out_cor);
+        close ($out_seq);
+    }
     if ($type eq "core" and $proc_eye == 0){
         close ($bbone_cor);
         close ($bbone_seq);
@@ -1256,8 +1271,11 @@ sub post_process {
     my $loci_count = 0;
     if (%loci){
         #sort and output the annotation information to file
-        open (my $out_gen, ">$fileid\_loci.txt") or die "ERROR: Can't open $fileid\_loci.txt: $!\n";
-        print $out_gen "locus_id\tgen_contig_id\tgen_contig_start\tgen_contig_stop\tstrand\tout_seq_id\tout_seq_start\tout_seq_stop\tpct_locus\toverhangs\tproduct\n" unless ($type eq "out" or $type eq "pan");
+        my $out_gen;
+        if ($opt_o or $type eq "out" or $type eq "pan"){
+            open ($out_gen, ">$fileid\_loci.txt") or die "ERROR: Can't open $fileid\_loci.txt: $!\n";
+            print $out_gen "locus_id\tgen_contig_id\tgen_contig_start\tgen_contig_stop\tstrand\tout_seq_id\tout_seq_start\tout_seq_stop\tpct_locus\toverhangs\tproduct\n" unless ($type eq "out" or $type eq "pan");
+        }
         my $bbone_gen;
         if ($type eq "core" and $proc_eye == 0){
             open ($bbone_gen, ">$bbonefileid\_loci.txt") or die "ERROR: Can't open $stat.backbone_loci.txt: $!\n";
@@ -1291,10 +1309,12 @@ sub post_process {
                 my $pct = sprintf("%.2f", 100 * (($hstop - $hstart + 1) / $locusleng));
                 $tot_pct += $pct;
                 my ($cstart, $cstop) = ($hstart - $hoffset + 1, $hstop - $hoffset + 1);
-                print $out_gen "$locus\t$out_contig\t$hstart\t$hstop\t$dir\t$id\t$cstart\t$cstop\t$pct\t$over_front,$over_back";
-                print $out_gen "\t$ref" if ($type eq "out" or $type eq "pan");
-                print $out_gen "\t$prod" if $prod;
-                print $out_gen "\n";
+                if ($opt_o or $type eq "out" or $type eq "pan"){
+                    print $out_gen "$locus\t$out_contig\t$hstart\t$hstop\t$dir\t$id\t$cstart\t$cstop\t$pct\t$over_front,$over_back";
+                    print $out_gen "\t$ref" if ($type eq "out" or $type eq "pan");
+                    print $out_gen "\t$prod" if $prod;
+                    print $out_gen "\n";
+                }
                 if ($type eq "core" and $proc_eye == 0){
                     print $bbone_gen "$locus\t$out_contig\t$hstart\t$hstop\t$dir\t$bbid\t$cstart\t$cstop\t$pct\t$over_front,$over_back\t$ref";
                     print $bbone_gen "\t$prod" if $prod;
@@ -1303,19 +1323,21 @@ sub post_process {
             }
             $loci_count++ if $tot_pct >= $minpct; #for the purposes of counting, will use a 50% cutoff (so that only if the gene is in the majority in either core of accessory it will be counted as belonging to that group)
         }
-        close ($out_gen);
+        close ($out_gen) if $out_gen;
         close ($bbone_gen) if $bbone_gen;
     }
     #get stats (core or accessory. Backbone will be calculated later)
     my $stat_string = "x\n";
-    if ($type eq "core" or $type eq "accessory"){
-        my ($sum, $num, $min, $maxi, $rounded_mean, $median, $mode, $mode_freq) = stats(\@lengs);
-        my $gc = gc_content($tot_seq);
-        $stat_string = "$gcode\t$ref\t$gen_size\t$type\t$sum\t$gc\t$num\t$min\t$maxi\t$rounded_mean\t$median";
-        if ($opt_l){
-            $stat_string .= "\t$loci_count";
+    if ($opt_o){
+        if ($type eq "core" or $type eq "accessory"){
+            my ($sum, $num, $min, $maxi, $rounded_mean, $median, $mode, $mode_freq) = stats(\@lengs);
+            my $gc = gc_content($tot_seq);
+            $stat_string = "$gcode\t$ref\t$gen_size\t$type\t$sum\t$gc\t$num\t$min\t$maxi\t$rounded_mean\t$median";
+            if ($opt_l){
+                $stat_string .= "\t$loci_count";
+            }
+            $stat_string .= "\n";
         }
-        $stat_string .= "\n";
     }
     return($stat_string);
 }
