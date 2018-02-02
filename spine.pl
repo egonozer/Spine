@@ -1,6 +1,10 @@
 #!/usr/bin/perl
 
-my $version = "0.3";
+my $version = "0.3.1";
+## Changes from v0.3 -> v0.3.1
+# Can now accept fasta+gff3 annotations (i.e. Ensembl format)
+# Improved gbk_convert subroutine to allow records where the locus id may be in the gene record, but not the CDS record
+
 ## Changes from v0.2.4 -> v0.3
 # Can now accept multi-file genome sets (i.e. multiple chromosomes or plasmids)
 # Requires version 0.4 of nucmer_backbone.pl
@@ -76,7 +80,7 @@ use File::Spec::Functions qw ( catfile path );
 $|++;
 
 my $usage = "
-spine.pl
+Spine (version $version);
 
 This is a wrapper script to run the Spine algorithm
 
@@ -87,19 +91,24 @@ PREREQUISITES:
   operating systems.
 
 REQUIRED:
-  -f or --file      file with list of input sequence files
+  -f or --file      file with list of input sequence files. Accepted file
+                    formats include fasta sequence files, genbank sequence +
+                    annotation files, or separate fasta sequence files with
+                    corresponding gff3-formatted annotation files.
                     This file should be formatted like so:
                     
-                    path/to/file1<tab>unique_identifier<tab>fasta or gbk
-                    path/to/file2<tab>unique_identifier<tab>fasta or gbk
+                    path/to/file1<tab>unique_identifier<tab>fasta or gbk or comb
+                    path/to/file2<tab>unique_identifier<tab>fasta or gbk or comb
                     
                     Example:
                     /home/seqs/PAO1.fasta   PAO1    fasta
                     /home/seqs/LESB58.gbk   LESB58  gbk
+                    /home/seqs/PA14.fasta,/home/seqs/PA14.gff3  PA14    comb
                     
-                    The third column (fasta or gbk) is optional, but should
+                    The third column (fasta, gbk, or comb) is optional, but should
                     be given if your sequence files end with suffixes other
-                    than \".fasta\" or \".gbk\".
+                    than \".fasta\" or \".gbk\" or if you are providing sequences
+                    with gff3 annotation files, i.e. comb(ined).
                     
                     If you have genomes spread across multiple files (i.e.
                     chromosomes and/or plasmids), these can be combined by
@@ -110,6 +119,13 @@ REQUIRED:
                     Example:
                     /seqs/chrom_I.fasta,/seqs/chrom_II.fasta    mygenome    fasta
                     chrom_A.gbk,chrom_B.gbk,plasmid_X.gbk   myothergenome   gbk
+                    seqA.fasta,seqB.fasta,seqA.gff3,seqB.gff3   genomeAB    comb
+                    
+                    IMPORTANT: When including multiple files for a strain or
+                    joining multiple files within a strain, please ensure that
+                    all chromosome/plasmid/contig IDs are unique across files
+                    within a single genome. If sequence IDs are duplicated, the
+                    results are likely to be wrong.
                     
 OPTIONS:
   -a or --pctcore   percentage of input genomes in which a region must be
@@ -237,9 +253,9 @@ GetOptions(
     'nosimplify'    => \$nosimplify,
     'web'           => \$web
 ) or die "$usage";
-die "$usage" unless $fof;
 die "version $version\n" if $vers;
 die "$license\n" if $lic;
+die "$usage" unless $fof;
 
 die ("ERROR: Input parameters must be non-negative numbers\n") if ($aval_pct =~ m/[^0123456789.]/);
 die ("ERROR: Reference sequences must be entered as integers separated by commas\n") if ($refs and $refs =~m/[^0123456789,]/);
@@ -382,32 +398,82 @@ open (my $seqout, ">tmp_sequences.fasta") or die "ERROR: Can't open temporary fi
 open (my $crdout, ">tmp_coordinates.txt") or die "ERROR: Can't open temporary file: $!\n";
 for my $i (0 .. $#files){
     my ($filestr, $fileid, $filetype) = split("\t", $files[$i]);
+    $filestr =~ s/\s*$//;
     my @filelist = split(",", $filestr);
     #$nog++;
     $fileid =~ s/\s*$//; #removes any trailing space
     $fileid =~ s/^\s*//; #removes any leading space
-    if (!$fileid){
-        die "ERROR: All files must be given an ID\n";
-    }
+    clean_exit ("ERROR: All files must be given an ID") if (!$fileid);
     $fileid =~ s/\s+/_/g; #changes any remaining spaces to underscores
     $fileid =~ s/[\/\\*\s]/_/g; #changes any unusual characters to underscores
     my $input_order = $ref_order[$i];
-    print STDERR "ref order ". ($i+1) .", input order $input_order: $fileid\n";
-    print STDERR "<br>\n" if $web;
-    die "ERROR: This genome ID is a duplicate of another ID in this same dataset (see above). Only unique genome IDs should be used.\n" if ($file_dup_check{$fileid});
-    $file_dup_check{$fileid}++;
+    print STDERR "ref order ". ($i+1) .", input order $input_order: $fileid";
     if (!$filetype){
-        $filetype = "fasta" if ($filelist[0] =~ m/\.f[^.]*$/);
-        $filetype = "gbk" if ($filelist[0] =~ m/\.gb[^.]*$/);
-        die "ERROR: Can't guess at file type for $fileid.\n" if !$filetype;
+        $filetype = "fasta" if ($filestr =~ m/\.f[^.]*$/i);
+        $filetype = "gbk" if ($filestr =~ m/\.gb[^.]*$/i);
+        $filetype = "comb" if ($filestr =~ m/\.f[^.]*(?:,|\Z)/i and $filestr =~ m/\.gf[^.]*(?:,|\Z)/i);
+        clean_exit ("\nERROR: Can't guess at file type for $fileid. Please indicate 'fasta', 'gbk', or 'comb' on input form.") if !$filetype;
     }
+    my $outtype = $filetype;
+    $outtype = "fasta+gff3" if $filetype eq "comb";
+    print STDERR " filetype: $outtype\n";
+    print STDERR "<br>\n" if $web;
+    clean_exit ("ERROR: This genome ID is a duplicate of another ID in this same dataset (see above). Only unique genome IDs should be used.") if ($file_dup_check{$fileid});
+    $file_dup_check{$fileid}++;
     ##check whether the file matches the type given
+    if ($filetype eq "comb"){
+        my @ffiles;
+        foreach my $file (@filelist){
+            if ($file =~ m/\.f[^.]*\s*$/i){
+                push @ffiles, $file;
+            } elsif ($file =~ m/\.gf[^.]*\s*$/i){
+                my $g_status = gff_convert($file, $fileid, $i+1);
+                clean_exit ("ERROR: File '$file' cannot be opened. Please check file.") if ($g_status == 1);
+                clean_exit ("ERROR: File '$file' appears to be binary. Please check file.") if ($g_status == 2);
+                clean_exit ("ERROR: File '$file' is not in gff3 format. Please check file.") if ($g_status != 0);
+            } else {
+                #make an attempt to figure out if the file is a fasta file or a gff file
+                clean_exit ("ERROR: Can't find file '$file'. Please check path.") unless -e $file;
+                clean_exit ("ERROR: File '$file' appears to be a binary file. Please check.") if -B $file;
+                open (my $test, "<$file") or die "ERROR: Can't open $file: $!\n";
+                my $type;
+                while (my $line = <$test>){
+                    chomp $line;
+                    next if $line =~ m/^\s*$/; #skip blank lines
+                    if ($line =~ m/^##*gff-version/){
+                        $type = "g";
+                    } elsif ($line =~ m/^>/){
+                        $type = "f";
+                    }
+                    last;
+                }
+                close ($test);
+                unless ($type){
+                    clean_exit ("ERROR: Can't determine whether file '$file' is fasta or gff3. Please verify the file format.");
+                }
+                if ($type eq "f"){
+                    push @ffiles, $file;
+                } else {
+                    my $g_status = gff_convert($file, $fileid, $i+1);
+                    clean_exit ("ERROR: File '$file' cannot be opened. Please check file.") if ($g_status == 1);
+                    clean_exit ("ERROR: File '$file' appears to be binary. Please check file.") if ($g_status == 2);
+                    clean_exit ("ERROR: File '$file' is not in gff3 format. Please check file.") if ($g_status != 0);
+                }
+            }
+        }
+        if (@ffiles){
+            $filetype = "fasta";
+            @filelist = @ffiles;
+        } else {
+            clean_exit ("ERROR: No fasta-formatted sequence files were identified for $fileid");
+        }
+    }
     if ($filetype eq "fasta"){
         #$no_genes_out = 1;
         foreach my $file (@filelist){
-            die "ERROR: Can't find file '$file'. Please check path.\n" unless -e $file;
-            die "ERROR: File '$file' appears to be a binary file. Please check.\n" if -B $file;
-            open (my $in, "<", $file) or die "ERROR: Can't open $file: $!\n";
+            clean_exit ("ERROR: Can't find file '$file'. Please check path.") unless -e $file;
+            clean_exit ("ERROR: File '$file' appears to be a binary file. Please check.") if -B $file;
+            open (my $in, "<", $file) or clean_exit ("ERROR: Can't open $file: $!");
             my $shortfile = basename($file);
             my $rec_count = 0;
             my @seqarray;
@@ -430,9 +496,9 @@ for my $i (0 .. $#files){
             close ($in);
             $total_seqs += $rec_count;
             if ($rec_count == 0){
-                die "ERROR: File contains no records. Please check file.\n";
+                clean_exit ("ERROR: File $shortfile contains no records. Please check file.\n");
             } else {
-                print STDERR "\t$shortfile contains $rec_count record(s).\n";
+                print STDERR "\t$shortfile contains $rec_count sequence record(s).\n";
                 print STDERR "<br>\n" if $web;
                 while (@seqarray){
                     my $line = shift @seqarray;
@@ -441,14 +507,18 @@ for my $i (0 .. $#files){
                 }
             }
         }
-    } else {
+    } elsif ($filetype eq "gbk") {
         #$no_genes_out = "";
-        my $g_status = gbk_convert($filestr, $fileid, $i+1);
-        #nice_die ("File is not in Genbank format, CDS records do not have \"locus_tag\" tags, file does not contain DNA sequence, or sequence has non-nucleotide letters. Please check file.") if ($g_status != 0);
-        die "ERROR: File does not contain DNA sequence. Please check file.\n" if ($g_status == 2);
-        die "ERROR: CDS records missing \"locus_tag\" tags. Please check file and visit http://vfsmspineagent.fsm.northwestern.edu/gbk_reformat.cgi for conversion tool.\n" if ($g_status == 3);
-        die "ERROR: DNA sequence has non-nucleotide letters. Please check file.\n" if ($g_status == 4);
-        die "ERROR: File is not in Genbank format. Please check file.\n" if ($g_status != 0);
+        foreach my $file (@filelist){
+            my $g_status = gbk_convert($file, $fileid, $i+1);
+            #nice_die ("File is not in Genbank format, CDS records do not have \"locus_tag\" tags, file does not contain DNA sequence, or sequence has non-nucleotide letters. Please check file.") if ($g_status != 0);
+            clean_exit ("ERROR: File '$file' cannot be opened.") if ($g_status == 1);
+            clean_exit ("ERROR: File '$file' does not contain DNA sequence. Please check file.") if ($g_status == 2);
+            clean_exit ("ERROR: CDS records missing \"locus_tag\" tags. Please check file '$file' and visit http://vfsmspineagent.fsm.northwestern.edu/gbk_reformat.cgi for conversion tool.") if ($g_status == 3);
+            clean_exit ("ERROR: DNA sequence has non-nucleotide letters. Please check file.") if ($g_status == 4);
+            clean_exit ("ERROR: File '$file' may be binary instead of text. Please check file.") if ($g_status == 5);
+            clean_exit ("ERROR: File '$file' is not in Genbank format. Please check file.") if ($g_status != 0);
+        }
     }
 }
 close $seqout;
@@ -557,6 +627,165 @@ sub is_path {
 }
 
 sub gbk_convert{
+    my $file = shift;
+    my $filename = shift;
+    my $filenum = shift;
+    my $return_status = 0;
+    my $shortfile = basename($file);
+    return(1) unless -e $file;
+    return(5) if -B $file;
+    open (my $gbkin, "<", $file) or return(1);
+    my $loccount = 0;
+    my $seqcount = 0;
+    my ($c_id, $c_seq);
+    my $is_prod;
+    my @tags;
+    my %crecs;
+    my @ctg_order;
+    my $reading = 1; # 1 = front material, 2 = annotations, 3 = sequence
+    
+    while (my $fline = <$gbkin>){
+        $fline =~ s/\R/\012/g; #converts to UNIX-style line endings
+        my @lines = split("\n", $fline); #need to split lines by line-ending character in the case of Mac-formatted files which only have CR line terminators, not both CR and LF like DOS
+        while (@lines){
+            my $line = shift @lines;
+            next if $line =~ m/^\s*$/;
+            if ($line =~ m/^LOCUS\s+\S*\s+\d+\sbp/){
+                if ($reading == 2){ #no ORIGIN sequence record was found between LOCUS records
+                    return (2);
+                }
+                if ($reading == 3){
+                    if ($c_seq and $c_id){
+                        print $seqout ">#$filename#$c_id\n$c_seq\n";
+                        $c_seq = "";
+                        $reading = 1;
+                    } else {
+                        return (2);
+                    }
+                }
+            }
+            if ($line =~ m/^\/\//){ #reached the end of the file (or record)
+                if ($c_seq and $c_id){
+                    print $seqout ">#$filename#$c_id\n$c_seq\n";
+                    $c_seq = "";
+                    $reading = 1;
+                } else {
+                    return (2);
+                }
+            }
+            if ($reading == 1){
+                if ($line =~ m/^LOCUS\s+([^\s]+)/){
+                    $seqcount++;
+                    if ($line =~ m/^LOCUS\s+(\S+)\s+\d+ bp/){
+                        $c_id = $1;
+                    } else {
+                        $c_id = "rec$seqcount";
+                    }
+                    push @ctg_order, $c_id;
+                    next;
+                }
+                if ($line =~ m/^FEATURES\s+Location\/Qualifiers/){
+                    $reading = 2;
+                    next;
+                }
+            } elsif ($reading == 2){
+                if ($line =~ m/^\s+(\S+)\s+(complement\()*[<>]*(\d+)<*\.\.[<>]*(\d+)>*\)*\s*$/){
+                    $is_prod = "";
+                    my ($type, $start, $stop) = ($1, $3, $4);
+                    my $dir = "+";
+                    $dir = "-" if $2;
+                    unless ($crecs{$c_id}{$start}{$stop}{$dir}){
+                        @{$crecs{$c_id}{$start}{$stop}{$dir}} = (0);
+                    }
+                    if ($type eq "CDS"){
+                        ${$crecs{$c_id}{$start}{$stop}{$dir}}[0] = 1;
+                        $loccount++;
+                    }
+                    if (@tags){
+                        my ($o_start, $o_stop, $o_dir) = @tags;
+                        ${$crecs{$c_id}{$o_start}{$o_stop}{$o_dir}}[1] = $tags[3] if $tags[3];
+                        ${$crecs{$c_id}{$o_start}{$o_stop}{$o_dir}}[2] = $tags[4] if $tags[4];
+                        $loccount++;
+                    }
+                    @tags = ($start, $stop, $dir);
+                    next;
+                }
+                if ($line =~ m/^ORIGIN\s*$/){
+                    $is_prod = "";
+                    if (@tags){
+                        my ($o_start, $o_stop, $o_dir) = @tags;
+                        ${$crecs{$c_id}{$o_start}{$o_stop}{$o_dir}}[1] = $tags[3] if $tags[3];
+                        ${$crecs{$c_id}{$o_start}{$o_stop}{$o_dir}}[2] = $tags[4] if $tags[4];
+                        $loccount++;
+                    }
+                    undef @tags;
+                    $reading = 3;
+                    next
+                }
+                if ($line =~ m/^\s+\/(\S+)=\"*([^"]*)\"*/){
+                    $is_prod = "";
+                    my ($key, $val) = ($1, $2);
+                    if ($key eq "locus_tag"){
+                        $tags[3] = $val;
+                    }
+                    if ($key eq "product"){
+                        $tags[4] = $val;
+                        $is_prod = 1;
+                    }
+                    next;
+                }
+                if ($is_prod){
+                    $line =~ s/^\s*//;
+                    $line =~ s/"*\s*$//;
+                    $tags[4] .= " $line";
+                }
+            } elsif ($reading == 3){
+                $line =~ s/\d//g;
+                $line =~ s/\s//g;
+                $c_seq .= $line;
+                next;
+            }
+        }
+    }
+    if ($c_seq and $c_id){
+        print $seqout ">#$filename#$c_id\n$c_seq\n";
+        $c_seq = "";
+        $reading = 1;
+    }
+    close ($gbkin);
+    my $cds_count;
+    foreach my $cid (@ctg_order){
+        foreach my $start (sort{$a <=> $b} keys %{$crecs{$cid}}){
+            foreach my $stop (sort{$a <=> $b} keys %{$crecs{$cid}{$start}}){
+                foreach my $dir (sort keys %{$crecs{$cid}{$start}{$stop}}){
+                    my ($is_cds, $lid, $prod) = @{$crecs{$cid}{$start}{$stop}{$dir}};
+                    if ($is_cds){
+                        $cds_count++;
+                        unless ($lid){
+                            print STDERR "ERROR: CDS at $start..$stop on contig $cid in file $file for strain $filename has no locus_id\n";
+                            print STDERR "<br>\n" if $web;
+                            return(3);
+                        }
+                        print $crdout "$filenum\t$lid\t#$filename#$cid\t$start\t$stop\t$dir\t";
+                        print $crdout "$prod" if $prod;
+                        print $crdout "\n";
+                    }
+                }
+            }
+        }
+    }
+    unless ($cds_count){
+        print STDERR "\n<p>" if $web;
+        print STDERR "FYI: No CDS annotations were found in genbank file $file. Only sequence information will be used from this file.\n";
+        print STDERR "</p>\n" if $web;
+    }
+    print STDERR "\t$shortfile contains $seqcount sequence record(s) and $cds_count CDS annotations.\n";
+    print STDERR "<br>\n" if $web;
+    return (0);
+}
+
+
+sub old_gbk_convert{
     my $filestr = shift;
     my $filename = shift;
     my $filenum = shift;
@@ -700,7 +929,92 @@ sub gbk_convert{
     return(0);
 }
 
+sub gff_convert {
+    my $file = shift;
+    my $filename = shift;
+    my $filenum = shift;
+    my $shortfile = basename($file);
+    my $return_status = 0;
+    ## gff is tough because there seems to be very little standardization of tags for locus IDs and gene products
+    ## Need to try to set some priorities.
+    return(1) unless -e $file;
+    return(2) if -B $file;
+    open (my $in, "<$file") or return(1);
+    my %ctg_order;
+    my ($count, $ctg_num) = (0) x 2;
+    my %crecs;
+    while (my $line = <$in>){
+        next if $line =~ m/^#/;
+        next if $line =~ m/^\s*$/;
+        my ($contig, $x1, $type, $start, $stop, $x2, $dir, $x3, $rest) = split("\t", $line);
+        unless ($ctg_order{$contig}){
+            $ctg_num++;
+            $ctg_order{$contig} = $ctg_num;
+        }
+        unless ($crecs{$contig}{$start}{$stop}{$dir}){
+            @{$crecs{$contig}{$start}{$stop}{$dir}} = (0); #initialize the record as non-cds
+        }
+        if ($type eq "gene"){ # in Ensembl gff3 files, records corresponding to locus_id and product in gbk files are found in the gene record, not the CDS record
+            if ($rest =~ m/(?:\A|;)gene_id="*([^;"]+)/){
+                ${$crecs{$contig}{$start}{$stop}{$dir}}[1] = $1;
+            }
+            if ($rest =~ m/(?:\A|;)description="*([^;"]+)/){
+                ${$crecs{$contig}{$start}{$stop}{$dir}}[2] = $1;
+            }
+        }
+        next unless $type eq "CDS";
+        $count++;
+        ${$crecs{$contig}{$start}{$stop}{$dir}}[0] = 1;
+        #if the CDS record has "locus" or "name" records, will use these as the locus id and product names
+        if ($rest =~ m/(?:\A|;)locus="*([^;"]+)/){
+            ${$crecs{$contig}{$start}{$stop}{$dir}}[1] = $1;
+        }
+        if ($rest =~ m/(?:\A|;)name="*([^;"]+)/){
+            ${$crecs{$contig}{$start}{$stop}{$dir}}[2] = $1;
+        }
+        #assign a locus ID if none was found
+        unless (${$crecs{$contig}{$start}{$stop}{$dir}}[1]){
+            my $a_count = sprintf("%05d", $count);
+            $contig =~ s/^.*\|//;
+            my $orfid = "$shortfile-$a_count";
+            if ($rest =~ m/(?:\A|;)ID="*([^;"]+)/){
+                $orfid = $1;
+            }
+            ${$crecs{$contig}{$start}{$stop}{$dir}}[1] = $orfid;
+        }
+    }
+    close ($in);
+    return(3) unless ($count > 0); # no CDS records identified
+    foreach my $cid (sort{$ctg_order{$a} <=> $ctg_order{$b}} keys %ctg_order){
+        foreach my $start (sort{$a <=> $b} keys %{$crecs{$cid}}){
+            foreach my $stop (sort{$a <=> $b} keys %{$crecs{$cid}{$start}}){
+                foreach my $dir (sort keys %{$crecs{$cid}{$start}{$stop}}){
+                    my ($is_cds, $lid, $prod) = @{$crecs{$cid}{$start}{$stop}{$dir}};
+                    if ($is_cds){
+                        print $crdout "$filenum\t$lid\t#$filename#$cid\t$start\t$stop\t$dir\t";
+                        print $crdout "$prod" if $prod;
+                        print $crdout "\n";                        
+                    }
+                }
+            }
+        }
+    }
+    print STDERR "\t$shortfile contains $count CDS annotations.\n";
+    print STDERR "<br>\n" if $web;
+    return(0);
+}
+
 sub roundup {
     my $n = shift;
     return(($n == int($n)) ? $n : int($n + 1));
+}
+
+sub clean_exit {
+    my $message = shift;
+    close ($seqout);
+    unlink ("tmp_sequences.fasta");
+    close ($crdout);
+    unlink ("tmp_coordinates.txt");
+    die "$message\n";
+    return;
 }
