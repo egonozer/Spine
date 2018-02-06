@@ -498,6 +498,7 @@ for my $i (0 .. $#files){
             if ($rec_count == 0){
                 clean_exit ("ERROR: File $shortfile contains no records. Please check file.\n");
             } else {
+                print STDERR "&nbsp;&nbsp;&nbsp;&nbsp;" if $web;
                 print STDERR "\t$shortfile contains $rec_count sequence record(s).\n";
                 print STDERR "<br>\n" if $web;
                 while (@seqarray){
@@ -539,6 +540,7 @@ $a_params .= " -d $diagfactor" if $diagfactor;
 $a_params .= " -g $maxgap" if $maxgap;
 $a_params .= " -l $minmatch" if $minmatch;
 $a_params .= " --nosimplify" if $nosimplify;
+print STDERR "&nbsp;&nbsp;&nbsp;&nbsp;" if $web;
 print STDERR "\tnucmer options: $a_params\n";
 print STDERR "<br>\n" if $web;
 my $return;
@@ -779,6 +781,7 @@ sub gbk_convert{
         print STDERR "FYI: No CDS annotations were found in genbank file $file. Only sequence information will be used from this file.\n";
         print STDERR "</p>\n" if $web;
     }
+    print STDERR "&nbsp;&nbsp;&nbsp;&nbsp;" if $web;
     print STDERR "\t$shortfile contains $seqcount sequence record(s) and $cds_count CDS annotations.\n";
     print STDERR "<br>\n" if $web;
     return (0);
@@ -921,6 +924,7 @@ sub old_gbk_convert{
                 $a_id =~ s/\s.*$//; #remove everything after the first space in the sequence header (nucmer is going to do this to the headers anyway)
                 print $seqout ">#$filename#$a_id\n$a_seq\n";
             }
+            print STDERR "&nbsp;&nbsp;&nbsp;&nbsp;" if $web;
             print STDERR "\t$shortfile contains $seqcount record(s) with $loccount CDS.\n";
             print STDERR "<br>\n" if $web;
             #return (0);
