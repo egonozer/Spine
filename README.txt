@@ -26,8 +26,11 @@ spine.pl
 
 ** Required Inputs:
 
-  -f	File with list of input sequence files. This file should be
-formatted like so:        
+  -f	File with list of input sequence files. Accepted input file 
+	formats include fasta sequence files (fasta), genbank 
+	sequence + annotation files (gbk), or separate fasta sequence 
+	files with corresponding gff3-formatted annotation files (comb). 
+	This file should beformatted like so:        
         path/to/file1<tab>unique_identifier<tab>fasta or gbk
         path/to/file2<tab>unique_identifier<tab>fasta or gbk
         
@@ -35,16 +38,25 @@ Example:
         /home/seqs/PAO1.fasta   PAO1    fasta
         /home/seqs/LESB58.gbk   LESB58  gbk
         
-The third column (fasta or gbk) is optional, but should be given if
-your sequence files end with suffixes other than ".fasta" or ".gbk".
+The third column (fasta, gbk, or comb) is optional, but should be given if
+your sequence files end with suffixes other than ".fasta" or ".gbk", or if 
+you are providing sequences with gff3 annotation files, i.e. comb(ined).
 
-If you have genomes spread across multiple files (i.e. chromosomes and/or plasmids), these can be combined by either concatenating the files into one:  
+If you have genomes spread across multiple files (i.e. chromosomes and/or 
+plasmids), these can be combined by either concatenating the files into one:  
 	'cat chrom_I.gbk chrom_II.gbk > combined.gbk'
 or by including all the files in this input file, separated by commmas:  
 
 Example:
 	/seqs/chrom_I.fasta,/seqs/chrom_II.fasta    mygenome    fasta
 	chrom_A.gbk,chrom_B.gbk,plasmid_X.gbk   myothergenome   gbk
+	seqA.fasta,seqB.fasta,seqA.gff3,seqB.gff3   genomeAB    comb
+
+IMPORTANT: When including multiple files for a strain or
+           joining multiple files within a strain, please ensure that
+           all chromosome/plasmid/contig IDs are unique across files
+           within a single genome. If sequence IDs are duplicated, the
+           results are likely to be wrong.
 
 ** Optional Inputs
 
@@ -91,6 +103,14 @@ present in the first reference genome.
 (default: reference priority will be the same as the order of genomes
 entered, with the first genome having the highest priority and the
 last genome having the lowest priority)
+
+  --mini
+Produce only limited output, i.e. just the backbone sequence derived from the reference genome(s). This saves time on large data sets, especially if you only need the backbone sequence to get accessory sequences from AGEnt.
+(default: core and accessory sequence sets will be output for all included genomes)
+
+  --pangenome       
+Produce a pangenome sequence and characteristics from sequences in the order given. This option will be ignored if '--mini' option is given.
+(default: no pangenome information will be output)
 
   -o or --prefix
 Output prefix. (default: "output")

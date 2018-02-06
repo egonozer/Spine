@@ -22,10 +22,10 @@ For list of options, call the script without any inputs: `perl spine.pl`
 
 ### Required Inputs:
 
-`-f`	File with list of input sequence files. This file should beformatted like so:
+`-f`	File with list of input sequence files. Accepted input file formats include fasta sequence files (fasta), genbank sequence + annotation files (gbk), or separate fasta sequence files with corresponding gff3-formatted annotation files (comb). This file should beformatted like so:
 ```        
-path/to/file1<tab>unique_identifier<tab>fasta or gbk
-path/to/file2<tab>unique_identifier<tab>fasta or gbk
+path/to/file1<tab>unique_identifier<tab>fasta or gbk or comb
+path/to/file2<tab>unique_identifier<tab>fasta or gbk or comb
 ```        
 Example:
 ```
@@ -33,7 +33,7 @@ Example:
 /home/seqs/LESB58.gbk   LESB58  gbk
 ```
         
-The third column (fasta or gbk) is optional, but should be given if your sequence files end with suffixes other than ".fasta" or ".gbk".
+The third column (fasta, gbk, or comb) is optional, but should be given if your sequence files end with suffixes other than ".fasta" or ".gbk", or if you are providing sequences with gff3 annotation files, i.e. comb(ined).
 
 If you have genomes spread across multiple files (i.e. chromosomes and/or plasmids), these can be combined by either concatenating the files into one:  
 ```
@@ -44,7 +44,10 @@ Example:
 ```
 /seqs/chrom_I.fasta,/seqs/chrom_II.fasta    mygenome    fasta
 chrom_A.gbk,chrom_B.gbk,plasmid_X.gbk   myothergenome   gbk
+seqA.fasta,seqB.fasta,seqA.gff3,seqB.gff3   genomeAB    comb
 ```
+
+IMPORTANT: When including multiple files for a strain or joining multiple files within a strain, please ensure that all chromosome/plasmid/contig IDs are unique across files within a single genome. If sequence IDs are duplicated, the results are likely to be wrong.  
 
 ### Optional Inputs
 
@@ -68,6 +71,14 @@ Reference genome sequence(s) to use as primary output source(s). This should be 
 The number of reference genomes used will depend on the definition of core genome given by option -a. For instance, if core is determined from 10 input genomes and -a is given as 100, then core sequence will only be taken from one reference genome. If, for example, -a is given as 90 from 10 input genomes, then potentially two reference sequences will be needed: The first for sequences present in all 10 genomes and for sequences present in 9 out of 10 genomes including the first genome. The second reference sequence would then be used as the source of all sequences present in 9 out of 10 genomes, but not present in the first reference genome.
 
 (default: reference priority will be the same as the order of genomes entered, with the first genome having the highest priority and the last genome having the lowest priority)
+
+  `--mini`
+Produce only limited output, i.e. just the backbone sequence derived from the reference genome(s). This saves time on large data sets, especially if you only need the backbone sequence to get accessory sequences from AGEnt.  
+(default: core and accessory sequence sets will be output for all included genomes)  
+
+  `--pangenome`       
+Produce a pangenome sequence and characteristics from sequences in the order given. This option will be ignored if '--mini' option is given.  
+(default: no pangenome information will be output)  
 
   `-o` or `--prefix`  
 Output prefix.  
