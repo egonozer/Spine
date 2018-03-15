@@ -1,6 +1,10 @@
 #!/usr/bin/perl
 
-my $version = "0.3.1";
+my $version = "0.3.2";
+## Changes from v0.3.1 -> v0.3.2
+# Some genbank files will have "locus_id"s for some CDS records and "gene"s for others. Still prefer locus id, but will take gene id if that's all there is.
+# Allow gzipped input files
+
 ## Changes from v0.3 -> v0.3.1
 # Can now accept fasta+gff3 annotations (i.e. Ensembl format)
 # Improved gbk_convert subroutine to allow records where the locus id may be in the gene record, but not the CDS record
@@ -434,8 +438,13 @@ for my $i (0 .. $#files){
             } else {
                 #make an attempt to figure out if the file is a fasta file or a gff file
                 clean_exit ("ERROR: Can't find file '$file'. Please check path.") unless -e $file;
-                clean_exit ("ERROR: File '$file' appears to be a binary file. Please check.") if -B $file;
-                open (my $test, "<$file") or die "ERROR: Can't open $file: $!\n";
+                my $test;
+                if ($file =~ m/\.gz$/){
+                    open ($test, "gzip -cd $file | ") or clean_exit ("ERROR: Can't open $file: $!");
+                } else {
+                    clean_exit ("ERROR: File '$file' appears to be a binary file. Please check.") if -B $file;
+                    open ($test, "<$file") or clean_exit ("ERROR: Can't open $file: $!");
+                }
                 my $type;
                 while (my $line = <$test>){
                     chomp $line;
@@ -472,8 +481,13 @@ for my $i (0 .. $#files){
         #$no_genes_out = 1;
         foreach my $file (@filelist){
             clean_exit ("ERROR: Can't find file '$file'. Please check path.") unless -e $file;
-            clean_exit ("ERROR: File '$file' appears to be a binary file. Please check.") if -B $file;
-            open (my $in, "<", $file) or clean_exit ("ERROR: Can't open $file: $!");
+            my $in;
+            if ($file =~ m/\.gz$/){
+                open ($file, "gzip -cd $file | ") or clean_exit ("ERROR: Can't open $file: $!\n");
+            } else {
+                clean_exit ("ERROR: File '$file' appears to be a binary file. Please check.") if -B $file;
+                open ($in, "<", $file) or clean_exit ("ERROR: Can't open $file: $!");
+            }
             my $shortfile = basename($file);
             my $rec_count = 0;
             my @seqarray;
@@ -635,8 +649,13 @@ sub gbk_convert{
     my $return_status = 0;
     my $shortfile = basename($file);
     return(1) unless -e $file;
-    return(5) if -B $file;
-    open (my $gbkin, "<", $file) or return(1);
+    my $gbkin;
+    if ($file =~ m/\.gz$/){
+        open ($gbkin, "gzip -cd $file | ") or return(1);
+    } else {
+        return(5) if -B $file;
+        open ($gbkin, "<", $file) or return(1);
+    }
     my $loccount = 0;
     my $seqcount = 0;
     my ($c_id, $c_seq);
@@ -705,7 +724,8 @@ sub gbk_convert{
                     }
                     if (@tags){
                         my ($o_start, $o_stop, $o_dir) = @tags;
-                        ${$crecs{$c_id}{$o_start}{$o_stop}{$o_dir}}[1] = $tags[3] if $tags[3];
+                        ${$crecs{$c_id}{$o_start}{$o_stop}{$o_dir}}[1] = $tags[5] if $tags[5]; #use gene id if that's all there is
+                        ${$crecs{$c_id}{$o_start}{$o_stop}{$o_dir}}[1] = $tags[3] if $tags[3]; #prefer locus id
                         ${$crecs{$c_id}{$o_start}{$o_stop}{$o_dir}}[2] = $tags[4] if $tags[4];
                         $loccount++;
                     }
@@ -716,7 +736,8 @@ sub gbk_convert{
                     $is_prod = "";
                     if (@tags){
                         my ($o_start, $o_stop, $o_dir) = @tags;
-                        ${$crecs{$c_id}{$o_start}{$o_stop}{$o_dir}}[1] = $tags[3] if $tags[3];
+                        ${$crecs{$c_id}{$o_start}{$o_stop}{$o_dir}}[1] = $tags[5] if $tags[5]; #use gene id if that's all there is
+                        ${$crecs{$c_id}{$o_start}{$o_stop}{$o_dir}}[1] = $tags[3] if $tags[3]; #prefer locus id
                         ${$crecs{$c_id}{$o_start}{$o_stop}{$o_dir}}[2] = $tags[4] if $tags[4];
                         $loccount++;
                     }
@@ -733,6 +754,9 @@ sub gbk_convert{
                     if ($key eq "product"){
                         $tags[4] = $val;
                         $is_prod = 1;
+                    }
+                    if ($key eq "gene"){
+                        $tags[5] = $val;
                     }
                     next;
                 }
@@ -764,7 +788,7 @@ sub gbk_convert{
                     if ($is_cds){
                         $cds_count++;
                         unless ($lid){
-                            print STDERR "ERROR: CDS at $start..$stop on contig $cid in file $file for strain $filename has no locus_id\n";
+                            print STDERR "ERROR: CDS at $start..$stop on contig $cid in file $file for strain $filename has no locus_id or gene id\n";
                             print STDERR "<br>\n" if $web;
                             return(3);
                         }
@@ -942,8 +966,13 @@ sub gff_convert {
     ## gff is tough because there seems to be very little standardization of tags for locus IDs and gene products
     ## Need to try to set some priorities.
     return(1) unless -e $file;
-    return(2) if -B $file;
-    open (my $in, "<$file") or return(1);
+    my $in;
+    if ($file =~ m/\.gz$/){
+        open ($in, "gzip -cd $file | ") or return(1);
+    } else {
+        return(2) if -B $file;
+        open ($in, "<$file") or return(1);
+    }
     my %ctg_order;
     my ($count, $ctg_num) = (0) x 2;
     my %crecs;
