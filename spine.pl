@@ -779,7 +779,7 @@ sub gbk_convert{
         $reading = 1;
     }
     close ($gbkin);
-    my $cds_count;
+    my $cds_count = 0;
     foreach my $cid (@ctg_order){
         foreach my $start (sort{$a <=> $b} keys %{$crecs{$cid}}){
             foreach my $stop (sort{$a <=> $b} keys %{$crecs{$cid}{$start}}){
