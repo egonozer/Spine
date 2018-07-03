@@ -1,6 +1,9 @@
 #!/usr/bin/perl
 
-my $version = "0.3";
+my $version = "0.3.1";
+
+## changes from v0.3
+# Removed File::Which dependency. Added subroutine to test for whether executable is in PATH that uses only core Perl modules
 
 ## changes from v0.2
 ## changed group_name delimiters from | to # to work with nucmer_backbone_v0.3
@@ -11,8 +14,8 @@ my $version = "0.3";
 
 use strict;
 use warnings;
-use File::Which;
 use File::Spec;
+use File::Spec::Functions qw ( catfile path );
 
 my $usage = "
 nucmer_multi.pl - Performs all-vs-all nucmer alignments of multi-fasta files.
@@ -63,7 +66,7 @@ my $threads = $opt_t ? $opt_t : 15;
 my $pref    = $opt_o ? $opt_o : "out";
 
 if (!$nucpath){
-    $nucpath = which('nucmer');
+    $nucpath = is_path("nucmer");
 }
 
 die "Nucmer could not be found in your PATH.\n" if (!$nucpath);
@@ -279,4 +282,22 @@ close ($out);
 for my $i (0 .. $#t_fa_files){
     my $ref = $t_fa_files[$i];
     unlink ($ref);
+}
+
+#-------------------------------------------------------------------------------
+sub is_path {
+    ## Subroutine based on StackOverflow post by Sinan Unur (https://stackoverflow.com/a/8243770)
+    my $exe = shift;
+    my @path = path;
+    my @pathext = ( q{} );
+    if ($^O eq 'MSWin32'){
+        push @pathext, map { lc } split /;/, $ENV{PATHEXT};
+    }
+    for my $dir (@path){
+        for my $ext (@pathext){
+            my $f = catfile $dir, "$exe$ext";
+            return ($f) if -x $f;
+        }
+    }
+    return();
 }

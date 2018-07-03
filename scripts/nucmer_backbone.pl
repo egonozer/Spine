@@ -739,7 +739,7 @@ sub start_next_process {
         foreach my $ref (keys %hash){
             foreach my $qry (keys %{$hash{$ref}}){
                 my @pre = @{$hash{$ref}{$qry}};
-                @pre = sort{$a->[0] <=> $b->[0] || $a->[1] <=> $b-[1]}@pre;
+                @pre = sort{$a->[0] <=> $b->[0] || $a->[1] <=> $b->[1]}@pre; #found a missing arrow here (was "$b-[1]" instead of "$b->[1]"). This made no difference in results in testing.
                 my @post;
                 my ($lstart, $lstop) = @{shift @pre};
                 while (@pre){
